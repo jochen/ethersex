@@ -5,15 +5,19 @@ body {
 	font-family: sans-serif;
 }
 
-a{color: #ccc;}
-a:hover{color: #fff;}
-a:visited, a:active{color: #ddd;}
+a:hover{
+	color: #fff;
+}
 
-.small_button:hover {
+a:visited, a:active{
+	color: #ddd;
+}
+
+.small_button:hover{
 	background-color: #555;
 }
 
-.small_button, .lamp {
+.small_button, .lamp{
 	background-color: #444;
 	padding: 3px;
 	color: black;
@@ -49,31 +53,9 @@ a:visited, a:active{color: #ddd;}
 .iotable td { border-bottom: 1px dashed #FF9999 }
 .iotable th { border-bottom: 2px dashed #9999FF; padding: 3px;}
 
-.adc_graph {
-	width: 500px;
+table.bigtable {
+  font-weight:bold;
+  font-size:30px;
+  text-align: center;
 }
 
-.adc_graph div {
-	background-color: #00ff00;
-}
-
-.adc_data, .adc_graph {
-	border-left: 1px dashed #FF9999;
-	padding: 3px;
-}
-
-svg {
-	stroke: #999;
-}
-
-svg .graph {
-	stroke-width: 2px;
-}
-
-svg #axis {
-	stroke-dasharray: 2,5;
-}
-
-svg #text {
-	font-size: 10pt;
-}
