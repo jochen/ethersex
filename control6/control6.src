@@ -80,8 +80,9 @@ dnl  END
   ECMD_GLOBAL(hysterese, 0);
 
   THREAD(ofenregelung)
-
+    SYSLOG("<182>ofenregelung laeuft\n");
     ON KTY_GET(Ofen) > 600 && PIN_HIGH(Heizung) && PIN_HIGH(Warmwasser) DO
+	SYSLOG("<182>ofen wird geregelt\n");
 	if ( KTY_GET(Ofen) > 760 ) {
 	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 2 0\n");
 	    pumpe1_state = 0xff;
@@ -94,9 +95,11 @@ dnl  END
 	  }
 	}
 	else if(automatik == 1){
-
+	  SYSLOG("<182>ofen in automatik\n");
 	  UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2\n");
+	  syslog_sendf("UESENDGET_BUFFER_LEN %i\n", UESENDGET_BUFFER_LEN());
 	  ON UESENDGET_BUFFER_LEN() == 9 && strcmp_P(UESENDGET_BUFFER(), PSTR("2: 01 00\n")) DO
+	    SYSLOG("<182>nach uesendget\n");
 	    ON UESENDGET_BUFFER_LEN() == 9 && !strcmp_P(UESENDGET_BUFFER(), PSTR("2: 00 00\n")) DO
 	      pumpe2_state = 0;
 	    END
@@ -119,6 +122,7 @@ dnl  END
 	      }
 
 	      if(machwasser) {
+		SYSLOG("<182>soll wasser warm machen\n");
 		if (KTY_GET(Kessel) > 690 && Wasserforce == 0) {
 		  if(pumpe2_state != 11){ UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 38 FF\n");
 		    if(UESENDGET_BUFFER_LEN() == 9) pumpe2_state = 11;
@@ -171,6 +175,7 @@ dnl  END
 		}
 	      }
 	      else{
+		SYSLOG("<182>soll heizung warm machen\n");
 		if(pumpe2_state != 0){ UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 00 00\n");
 		  if(UESENDGET_BUFFER_LEN() == 9) pumpe2_state = 0;
 		  SYSLOG("<182>wasserpumpe state 0 (temp erreicht)\n");
