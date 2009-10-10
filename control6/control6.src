@@ -1,4 +1,5 @@
-dnl   Copyright (c) 2008 by Jochen Roessner <jochen@lugrot.de>
+#include "../syslog/syslog.h"
+dnl   Copyright (c) 2009 by Jochen Roessner <jochen@lugrot.de>
 dnl   This program is free software; you can redistribute it and/or modify
 dnl   it under the terms of the GNU General Public License version 2 or later
 dnl   as published by the Free Software Foundation.
@@ -18,66 +19,257 @@ dnl
 
 enum sensor { Kessel,Vorlauf,Wasser,WasserRuecklauf,WasserZulauf,AussenNord,Ruecklauf,Ofen };
 
-C6_HEADER(`/* This will be in control6.h */')
-
 CONTROL_START
 
 dnl // dnl ist der kommentar fuer m4. Zum aktivieren der beispiele einfach das dnl entfernen.
 
 dnl  // dieses Beispiel zeigt anhand meiner Heizungssteuerung wie man zeitverzoegert die Wasserheizung
 dnl  // schaltet. Das geschieht bei einer Temperatur groesser als 55,0 Grad und nur zwischen 6 und 11 Uhr 
-dnl  THREAD(warmwasser_high)
-dnl      WAIT(60 * 15);
-dnl      PIN_SET(Warmwasser);
-dnl      THREAD_WAIT(warmwasser_high);
-dnl  THREAD_END(warmwasser_high)
-dnl  ON ONCE CLOCK_MIN && ( CLOCK_HOUR > 11 || CLOCK_HOUR < 6 ) && KTY_GET(Wasser) > 550 DO THREAD_START(warmwasser_high) END
+  THREAD(warmwasser_high)
+      WAIT(60 * 15);
+      PIN_SET(Warmwasser);
+      THREAD_WAIT(warmwasser_high);
+  THREAD_END(warmwasser_high)
+  ON PIN_LOW(Wasserladepumpe) && CLOCK_MIN && KTY_GET(Wasser) > 550 DO THREAD_START(warmwasser_high) END
 
 dnl  // das Beispiel zeigt wie man sofort (einmal in der Minute) auf auf die Wassertemperatur reagiert und schaltet
 dnl  // der Pinname "Warmwasser" stammt aus der Konfig vom named_pin
-dnl  ON ONCE CLOCK_MIN && CLOCK_HOUR > 6 && CLOCK_HOUR < 19 && KTY_GET(Wasser) < 400 DO
+dnl  ON CLOCK_MIN && CLOCK_HOUR > 6 && CLOCK_HOUR < 19 && KTY_GET(Wasser) < 400 DO 
 dnl    PIN_CLEAR(Warmwasser);
 dnl  END
+  ON CLOCK_MIN == 0 && CLOCK_HOUR == 5 DO 
+    Wassersoll = 50;
+    Wasserdiff = 15;
+  END
+  ON CLOCK_MIN == 30 && CLOCK_HOUR == 11 DO 
+    Wassersoll = 52;
+    Wasserdiff = 15;
+  END
+  ON CLOCK_MIN == 0 && CLOCK_HOUR == 23 DO 
+    Wassersoll = 59;
+    Wasserdiff = 3;
+  END
 
-dnl  // ein Thread der in einer Endlosschleife mit 5 Sekunden Verzoegerung laeuft 
-dnl  // definiert eine globale Variable
-dnl  GLOBAL(lastzulauf, uint16_t);
-dnl  THREAD(zulauf)
-dnl    ON ADC_GET(WasserZulauf) < (lastzulauf - 1) DO
-dnl      //sendet ein ecmd an ein anderes ethersex
-dnl      UESEND(2001:6f8:1209:0:0:0:0:e6, "pumpe 0 1 0\n");
-dnl      WAIT(120);
-dnl      UESEND(2001:6f8:1209:0:0:0:0:e6, "pumpe 0 0 0\n");
-dnl      lastzulauf = ADC_GET(WasserZulauf);
-dnl    END
-dnl    ON ADC_GET(4) > lastzulauf DO
-dnl	lastzulauf = ADC_GET(WasserZulauf);
-dnl    END
-dnl    WAIT(5)
-dnl  THREAD_END(zulauf)
+  GLOBAL(lastzulauf, uint16_t);
+  GLOBAL(ausgleichscount, uint8_t);
+  THREAD(zulauf)
+      ON ADC_GET(WasserZulauf) < (lastzulauf - 1) DO
+	//PIN_SET(Wasserpumpe);
+	UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 0 2 0\n");
+	WAIT(120);
+	//PIN_CLEAR(Wasserpumpe);
+	UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 0 0 0\n");
+	WAIT(60 * 5)
+	lastzulauf = ADC_GET(WasserZulauf);
+      END
+      ON ADC_GET(4) > lastzulauf || ( CLOCK_HOUR > 0 && CLOCK_HOUR < 7 ) || ausgleichscount == 150 DO
+	lastzulauf = ADC_GET(WasserZulauf);
+	ausgleichscount = 0;
+      END
+      ausgleichscount++;
+      WAIT(4)
+  THREAD_END(zulauf)
 
-dnl  ON STARTUP DO
-dnl      THREAD_START(zulauf);
-dnl  END
+  ECMD_GLOBAL(Wassersoll, 52);
+  ECMD_GLOBAL(Wasserdiff, 15);
+  ECMD_GLOBAL(Wasserforce, 0);
+  ECMD_GLOBAL(pumpe1_state, 0); 
+  ECMD_GLOBAL(pumpe2_state, 0); 
+  ECMD_GLOBAL(automatik, 1);
+  ECMD_GLOBAL(machwasser, 0);
+  ECMD_GLOBAL(hysterese, 0);
 
-dnl  // schaltet morgens um 6 Uhr die Heizung ein wenn es draussen weniger als 3 Grad hat
-dnl  ON ONCE CLOCK_MIN == 0 && CLOCK_HOUR == 6 && KTY_GET(AussenNord) < 30 DO
+  THREAD(ofenregelung)
+
+    ON KTY_GET(Ofen) > 600 && PIN_HIGH(Heizung) && PIN_HIGH(Warmwasser) DO
+	if ( KTY_GET(Ofen) > 760 ) {
+	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 2 0\n");
+	    pumpe1_state = 0xff;
+	    SYSLOG("<182>heizpumpe voll (ofenhoch) on\n");
+          /* ofen ist sehr heiss und kessel ist heiss genug und das wasser ist kälter als der kessel und vorlauf */
+	  if ( KTY_GET(Kessel) > 650 && (KTY_GET(Wasser) + 30) <  KTY_GET(Kessel) && KTY_GET(Wasser) < KTY_GET(Vorlauf) ) {
+	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 02 00\n");
+	    pumpe2_state = 0xff;
+	    SYSLOG("<182>wasserpumpe voll (ofenhoch) on\n");
+	  }
+	}
+	else if(automatik == 1){
+
+	  UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2\n");
+	  ON UESENDGET_BUFFER_LEN() == 9 && strcmp_P(UESENDGET_BUFFER(), PSTR("2: 01 00\n")) DO
+	    ON UESENDGET_BUFFER_LEN() == 9 && !strcmp_P(UESENDGET_BUFFER(), PSTR("2: 00 00\n")) DO
+	      pumpe2_state = 0;
+	    END
+	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1\n");
+	    ON UESENDGET_BUFFER_LEN() == 9 && strcmp_P(UESENDGET_BUFFER(), PSTR("1: 01 00\n")) DO
+	      ON UESENDGET_BUFFER_LEN() == 9 && !strcmp_P(UESENDGET_BUFFER(), PSTR("1: 00 00\n")) DO
+	        pumpe1_state = 0;
+	      END
+
+	      if (KTY_GET(Wasser) > (Wassersoll * 10 + Wasserdiff) &&  Wasserforce == 0 ) {
+		machwasser = 0;
+	      }
+	      if (  /* wassertemp ist kleiner als es soll */ 
+		KTY_GET(Wasser) < (Wassersoll * 10 -  Wasserdiff) ||
+		/* es soll nur warm wasser gemacht werden */ 
+		Wasserforce != 0  ||
+		/*der ofen wird kalt und der kessel ist noch heiss genug */
+		( KTY_GET(Ofen) < 645 &&  KTY_GET(Kessel) > (KTY_GET(Wasser) + 30) ) ) {
+		machwasser = 1;
+	      }
+
+	      if(machwasser) {
+		if (KTY_GET(Kessel) > 690 && Wasserforce == 0) {
+		  if(pumpe2_state != 11){ UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 38 FF\n");
+		    if(UESENDGET_BUFFER_LEN() == 9) pumpe2_state = 11;
+		    SYSLOG("<182>wasserpumpe state 11\n");
+		  }
+		  if ( KTY_GET(Kessel) > 730 ) {
+		    // 1B~3s, 20~5s, 2E~10s, 40~20s
+		    if(pumpe1_state != 3){ UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 38 4F\n");
+		      if(UESENDGET_BUFFER_LEN() == 9) pumpe1_state = 3;
+		      SYSLOG("<182>heizpumpe state 3\n");
+		    }
+		  }
+		  else if ( KTY_GET(Kessel) > 710 ) {
+		    if(pumpe1_state != 2){ UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 24 4F\n");
+		      if(UESENDGET_BUFFER_LEN() == 9) pumpe1_state = 2;
+		      SYSLOG("<182>heizpumpe state 2\n");
+		    }
+		  }
+		  else {
+		    if(pumpe1_state != 1){ UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 1C 4F\n");
+		      if(UESENDGET_BUFFER_LEN() == 9) pumpe1_state = 1;
+		      SYSLOG("<182>heizpumpe state 1\n");
+		    }
+		  }
+		}
+		else {
+		  if(pumpe1_state != 0){ UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 0 0\n");
+		    if(UESENDGET_BUFFER_LEN() == 9) pumpe1_state = 0;
+		    SYSLOG("<182>heizpumpe state 0\n");
+		  }
+		  if ( KTY_GET(Kessel) < (KTY_GET(Wasser) + 20) ) {
+		    if(pumpe2_state != 0){ UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 00 00\n");
+		      if(UESENDGET_BUFFER_LEN() == 9) pumpe2_state = 0;
+		      SYSLOG("<182>wasserpumpe state 0 (kessel tief)\n");
+		    }
+		  }
+		  else if ( KTY_GET(Kessel) > (635 - hysterese)) {
+		    if(pumpe2_state != 2){ UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 38 38\n");
+		      hysterese = 10;
+		      if(UESENDGET_BUFFER_LEN() == 9) pumpe2_state = 2;
+		      SYSLOG("<182>wasserpumpe state 2\n");
+		    }
+		  }
+		  else{
+		    if(pumpe2_state != 1){ UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 24 38\n");
+		      if(UESENDGET_BUFFER_LEN() == 9) pumpe2_state = 1;
+		      SYSLOG("<182>wasserpumpe state 1\n");
+		    }
+		  }
+		}
+	      }
+	      else{
+		if(pumpe2_state != 0){ UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 00 00\n");
+		  if(UESENDGET_BUFFER_LEN() == 9) pumpe2_state = 0;
+		  SYSLOG("<182>wasserpumpe state 0 (temp erreicht)\n");
+		}
+
+		if ( KTY_GET(Kessel) > 720 ) {
+		  // 40~20s, 4F~30s, 6F~60s, 88~90s, 9C~120s, C0~180s 
+		  if(pumpe1_state != 13){ UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 6F 4F\n");
+		    if(UESENDGET_BUFFER_LEN() == 9) pumpe1_state = 13;
+		    SYSLOG("<182>heizpumpe state 13\n");
+		  }
+		}
+		else if ( KTY_GET(Kessel) > (700 - (hysterese/2))) {
+		  if(pumpe1_state != 12){ UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 5F 4F\n");
+		    hysterese = 20;
+		    if(UESENDGET_BUFFER_LEN() == 9) pumpe1_state = 12;
+		    SYSLOG("<182>heizpumpe state 12\n");
+		    }
+		}
+		else if ( KTY_GET(Kessel) > (670 - hysterese)) {
+		  if(pumpe1_state != 11){ UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 5F AB\n");
+		    hysterese = 20;
+		    if(UESENDGET_BUFFER_LEN() == 9) pumpe1_state = 11;
+		    SYSLOG("<182>heizpumpe state 11\n");
+		  }
+		}
+		else if ( KTY_GET(Kessel) > 550 ) {
+		  if(pumpe1_state != 10){ UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 5F BF\n");
+		    if(UESENDGET_BUFFER_LEN() == 9) pumpe1_state = 10;
+		    SYSLOG("<182>heizpumpe state 10\n");
+		  }
+		}
+		else if ( KTY_GET(Kessel) < 450 ) {
+		  if(pumpe1_state != 0){ UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 0 0\n");
+		    if(UESENDGET_BUFFER_LEN() == 9) pumpe1_state = 0;
+		    SYSLOG("<182>heizpumpe state 0\n");
+		  }
+		}
+	      }
+
+	    END
+	  END
+	}
+      END
+      if (hysterese > 0) hysterese--;
+    WAIT(15)
+  THREAD_END(ofenregelung)
+
+
+
+  ON STARTUP DO
+      THREAD_START(zulauf);
+      THREAD_START(ofenregelung);
+      PIN_SET(Warmwasser);
+      PIN_SET(Heizung);
+  END
+
+  ON CLOCK_MIN == 30 && CLOCK_HOUR == 6 && CLOCK_DOW < 6 && KTY_GET(Wasser) < 370 DO 
+    PIN_CLEAR(Warmwasser);
+  END
+  ON CLOCK_MIN && PIN_LOW(Warmwasser) && PIN_HIGH(Heizung) && KTY_GET(Ofen) < 600 && (KTY_GET(Kessel) - 50) < KTY_GET(Wasser) DO
+    UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 0 0\n");
+  END
+
+dnl  ON CLOCK_MIN == 0 && CLOCK_HOUR == 6 && KTY_GET(AussenNord) < 30 && KTY_GET(Wohnzimmer) < 200 DO
 dnl    PIN_CLEAR(Heizung);
 dnl  END
 
-dnl  // reagiert sofort auf eine fallende Flanke am Eingangspin
-dnl  ON PIN_FALLING(Heizzirkulationspumpe) DO
-dnl    UESEND(2001:6f8:1209:0:0:0:0:e6, "pumpe 1 1 0\n");
-dnl  END
-dnl  ON PIN_RISING(Heizzirkulationspumpe) DO
-dnl    UESEND(2001:6f8:1209:0:0:0:0:e6, "pumpe 1 0 0\n");
-dnl  END
-dnl  // alle 10 Minuten wird geprueft ob der Pin low ist und ggf ein ecmd gesendet
-dnl  ON ONCE CLOCK_MIN % 10 == 0 DO
-dnl    ON PIN_LOW(Heizzirkulationspumpe) DO
-dnl      UESEND(2001:6f8:1209:0:0:0:0:e6, "pumpe 1 1 0\n");
-dnl    END
-dnl  END
+dnl / pumpe aus wenn der ofen in der nacht abkühlt  
+  ON CLOCK_MIN % 16 == 0 && CLOCK_HOUR > 0 && CLOCK_HOUR < 5 && KTY_GET(Ofen) < 600 && KTY_GET(Kessel) < 590 DO
+    UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 0 0\n");
+    UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 0 0\n");
+    pumpe1_state = 0;
+    pumpe2_state = 0;
+  END
+
+  ON PIN_FALLING(Heizzirkulationspumpe) DO
+    UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 1 0\n");
+  END
+  ON PIN_RISING(Heizzirkulationspumpe) DO
+    UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 0 0\n");
+  END
+  ON CLOCK_MIN  % 8 == 0 &&  PIN_LOW(Heizung) DO
+    ON PIN_LOW(Heizzirkulationspumpe) DO
+      UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 1 0\n");
+    END
+  END
+
+  ON PIN_FALLING(Wasserladepumpe) DO
+    UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 1 0\n");
+  END
+  ON PIN_RISING(Wasserladepumpe) && PIN_LOW(Heizung) DO
+    UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 0 0\n");
+  END
+  ON CLOCK_MIN % 8  == 0 && PIN_LOW(Warmwasser) DO
+    ON PIN_LOW(Wasserladepumpe) DO
+      UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 1 0\n");
+    END
+  END
 
 dnl // eine globale Variable fuer ecmd verwendet man so
 dnl ECMD_GLOBAL(Wassersoll, 20);
@@ -87,7 +279,6 @@ dnl   Wassersoll = 30;
 dnl END
 dnl // die ecmd syntax ist "c6 get Wassersoll" oder "c6 set Wassersoll 255"
 dnl // die werte koennen von 0 bis 255 gehen.
-
 
 CONTROL_END
 

@@ -16,66 +16,64 @@
     <script src="gph.js" type="text/javascript"></script>
     <script type="text/javascript"><![CDATA[
 var num = 8;
-var min = -10, max = 50;
-var g;
+var min = -10, max = 80;
+var g = new Array();
+
+function kty_trigger() {
+	setTimeout("kty_trigger_get();", 10000);
+}
 
 function kty_trigger_get() {
-	setInterval("ArrAjax.ecmd('kty get', kty_get_handler)", 5000);
+	ArrAjax.ecmd('kty get', kty_get_handler, 'GET', 0);
+	kty_trigger();
 }
 
 function kty_get_handler(request, data) {
-	var sensors = request.responseText.split(" ");
-	for (var i = sensors.length-1; i >= 0; i--) {
-		if (isNaN(parseFloat(sensors[i])))
-			sensors.splice(i, 1);
-	}
-	num = (sensors.length < num) ? sensors.length : num;
+	var daten = returnObjById("daten");
+	daten.innerHTML = request.responseText;
+
 	for (var i = 0; i < num; i++) {
-		var dat = $('kty_data' + i);
-		dat.innerHTML = sensors[i] + '°C';
-		dat.style.color = g[i].color;
-		g[i].append(parseInt(sensors[i]));
+		var sensor = request.responseText.substr(i*6, 6);
+		graphAppend(g[i], parseInt(sensor));
 	}
 }
 
 window.onload = function() {
-	g = initDiagram(num, "g#", "axis", "text", min, max);
-	var kty_table = $('kty_table');
+	graphCreateAxis("axis", "text", min, max);
 	for (var i = 0; i < num; i++)
-		kty_table.insertRow(i+1).innerHTML = '<td id="kty_data' + i +'">No data</td>';
-	kty_trigger_get();
+		g[i] = new Graph("grph" + i, 40, min, max);
+	kty_trigger();
 }
 ]]></script>
   </head>
   <body>
     <h1>SVG-powered KTY Status</h1>
 
-    <table>
-    <tr><td valign="top">
-      <table id='kty_table' border="1" cellspacing="0">
-        <tr><td>Data</td></tr>
-      </table>
-    </td>
-    <td>
-<!--[if IE]>
-      <p>
-        <object id="AdobeSVG" classid="clsid:78156a80-c6a1-4bbf-8e6a-3cd390eeb4e2"> </object>
-      </p>
-      <?import namespace="svg" urn="http://www.w3.org/2000/svg" implementation="#AdobeSVG"?>
-<![endif]-->
-      <svg:svg id="chart" width="400px" height="300px" viewBox="0 0 400 300" zoomAndPan="disable">
-        <svg:g class="graph" id="g0"></svg:g>
-        <svg:g class="graph" id="g1"></svg:g>
-        <svg:g class="graph" id="g2"></svg:g>
-        <svg:g class="graph" id="g3"></svg:g>
-        <svg:g class="graph" id="g4"></svg:g>
-        <svg:g class="graph" id="g5"></svg:g>
-        <svg:g class="graph" id="g6"></svg:g>
-        <svg:g class="graph" id="g7"></svg:g>
-        <svg:g id="axis"></svg:g>
-        <svg:g id="text"></svg:g>
-      </svg:svg>
-    </td></tr>
+    <p><!-- Jippie, we like Microsoft Internet Explorer -->
+      <object id="AdobeSVG" classid="clsid:78156a80-c6a1-4bbf-8e6a-3cd390eeb4e2"> </object>
+    </p>
+
+    <?import namespace="svg" urn="http://www.w3.org/2000/svg" implementation="#AdobeSVG"?>
+    <svg:svg width="900px" height="600px" viewBox="0 0 900 600"
+	     zoomAndPan="disable">
+      <svg:g stroke="red"   style="stroke-width:2px;" id="grph0"></svg:g>
+      <svg:g stroke="purple"  style="stroke-width:2px;" id="grph1"></svg:g>
+      <svg:g stroke="lime" style="stroke-width:2px;" id="grph2"></svg:g>
+      <svg:g stroke="green" style="stroke-width:2px;" id="grph3"></svg:g>
+      <svg:g stroke="olive" style="stroke-width:2px;" id="grph4"></svg:g>
+      <svg:g stroke="navy" style="stroke-width:2px;" id="grph5"></svg:g>
+      <svg:g stroke="maroon" style="stroke-width:2px;" id="grph6"></svg:g>
+      <svg:g stroke="fuchsia" style="stroke-width:2px;" id="grph7"></svg:g>
+      <svg:g stroke="#999"  style="stroke-dasharray: 2, 5; " id="axis"></svg:g>
+      <svg:g stroke="#999" font-size="12" id="text"></svg:g>
+    </svg:svg>
+
+    <table id='ow_table' border="1" cellspacing="0" class="bigtable">
+    <tr><td style="color: red;">Kessel</td><td style="color: purple;">Vorlauf</td><td style="color: lime;">Wasser</td>
+    <td style="color: green;">W.Rueckl</td><td style="color: olive;">W.Zulauf</td><td style="color: navy;">AussenNord</td>
+    <td style="color: maroon;">Ruecklauf</td><td style="color: fuchsia;">Ofen</td></tr>
+    <tr><td id='sensor0'> </td><td id='sensor1'> </td><td id='sensor2'> </td><td id='sensor3'> </td><td id='sensor4'> </td><td id='sensor5'> </td><td id='sensor6'> </td><td id='sensor7'> </td></tr>
+    <tr><td id='daten' colspan="8">No data</td></tr>
     </table>
     <div id="logconsole"></div>
   </body>
