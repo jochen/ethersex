@@ -34,7 +34,11 @@ function kty_get_handler(request, data) {
 
 	for (var i = 0; i < num; i++) {
 		var sensor = request.responseText.substr(i*6, 6);
-		graphAppend(g[i], parseInt(sensor));
+		var temperatur = parseFloat (sensor);
+		var sensor = returnObjById("sensor"+i);
+		sensor.innerHTML = temperatur;
+		graphAppend (g[i], temperatur);
+
 	}
 }
 
