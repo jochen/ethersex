@@ -97,7 +97,9 @@ dnl  END
 	else if(automatik == 1){
 	  SYSLOG("<182>ofen in automatik\n");
 	  UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2\n");
+	  #ifdef syslog_support
 	  syslog_sendf("UESENDGET_BUFFER_LEN %i\n", UESENDGET_BUFFER_LEN());
+	  #endif
 	  ON UESENDGET_BUFFER_LEN() == 9 && strcmp_P(UESENDGET_BUFFER(), PSTR("2: 01 00\n")) DO
 	    SYSLOG("<182>nach uesendget\n");
 	    ON UESENDGET_BUFFER_LEN() == 9 && !strcmp_P(UESENDGET_BUFFER(), PSTR("2: 00 00\n")) DO
@@ -117,7 +119,7 @@ dnl  END
 		/* es soll nur warm wasser gemacht werden */ 
 		Wasserforce != 0  ||
 		/*der ofen wird kalt und der kessel ist noch heiss genug */
-		( KTY_GET(Ofen) < 645 &&  KTY_GET(Kessel) > (KTY_GET(Wasser) + 30) ) ) {
+		( KTY_GET(Ofen) < 640 &&  KTY_GET(Kessel) > (KTY_GET(Wasser) + 40) ) ) {
 		machwasser = 1;
 	      }
 
