@@ -3,7 +3,7 @@ var vboxw = 900;
 
 function Graph(id, num, min, max) {
 	this.obj = returnObjById(id);
-	this.xmult = vboxw / num;
+	this.xmult = 1;
 	this.min = min;
 	this.max = max;
 	this.last_y = -1;
