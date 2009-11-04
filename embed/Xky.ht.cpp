@@ -20,7 +20,7 @@ var min = -10, max = 80;
 var g = new Array();
 
 function kty_trigger() {
-	setTimeout("kty_trigger_get();", 10000);
+	setTimeout("kty_trigger_get();", 5000);
 }
 
 function kty_trigger_get() {
