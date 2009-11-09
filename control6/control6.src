@@ -149,16 +149,6 @@ dnl  END
 			SYSLOG("<182>heizpumpe state 3\n");
 		      }
 		    }
-		    else if ( KTY_GET(Kessel) > 710 ) {
-		      if(badpumpe_state != 2){ UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 24 FF\n");
-			if(UESENDGET_BUFFER_LEN() == 9) badpumpe_state = 2;
-			SYSLOG("<182>badpumpe state 2\n");
-		      }
-		      if(heizpumpe_state != 2){ UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 24 4F\n");
-			if(UESENDGET_BUFFER_LEN() == 9) heizpumpe_state = 2;
-			SYSLOG("<182>heizpumpe state 2\n");
-		      }
-		    }
 		    else {
 		      if(badpumpe_state != 1){ UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 1C FF\n");
 			if(UESENDGET_BUFFER_LEN() == 9) badpumpe_state = 1;
@@ -179,7 +169,7 @@ dnl  END
 		      if(UESENDGET_BUFFER_LEN() == 9) heizpumpe_state = 0;
 		      SYSLOG("<182>heizpumpe state 0\n");
 		    }
-		    if ( KTY_GET(Kessel) < (KTY_GET(Wasser) + 20) ) {
+		    if ( KTY_GET(Kessel) < (KTY_GET(Wasser) + 40) ) {
 		      if(ladepumpe_state != 0){ UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 3 00 00\n");
 			if(UESENDGET_BUFFER_LEN() == 9) ladepumpe_state = 0;
 			SYSLOG("<182>wasserpumpe state 0 (kessel tief)\n");
@@ -287,13 +277,13 @@ dnl  END
 		      }
 		      else if ((KTY_GET(Kessel) + 60 + hysterese) >= KTY_GET(Ofen) && KTY_GET(Kessel) > 550 ) {
 			if(badpumpe_state != 32){ 
-			  UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 38 AB\n");
+			  UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 3A AB\n");
 			  hysterese = 20;
 			  if(UESENDGET_BUFFER_LEN() == 9) badpumpe_state = 32;
 			  SYSLOG("<182>badpumpe state 32\n");
 			}
 			if(heizpumpe_state != 32){
-			  UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 38 AB\n");
+			  UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 3A AB\n");
 			  hysterese = 20;
 			  if(UESENDGET_BUFFER_LEN() == 9) heizpumpe_state = 32;
 			  SYSLOG("<182>heizpumpe state 32\n");
