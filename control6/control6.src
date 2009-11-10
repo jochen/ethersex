@@ -21,6 +21,10 @@ enum sensor { Kessel,Vorlauf,Wasser,WasserRuecklauf,WasserZulauf,AussenNord,Ruec
 
 CONTROL_START
 
+void heizpumpe_on(uint8 value){
+   UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 %X 0\n", value);
+}
+
 dnl // dnl ist der kommentar fuer m4. Zum aktivieren der beispiele einfach das dnl entfernen.
 
 dnl  // dieses Beispiel zeigt anhand meiner Heizungssteuerung wie man zeitverzoegert die Wasserheizung
@@ -357,7 +361,8 @@ dnl / pumpe aus wenn der ofen in der nacht abkühlt
   END
 
   ON PIN_FALLING(Heizzirkulationspumpe) DO
-    UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 1 0\n");
+    heizpumpe_on(1);
+    dnl UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 1 0\n");
   END
   ON PIN_RISING(Heizzirkulationspumpe) DO
     UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 0 0\n");
