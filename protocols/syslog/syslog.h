@@ -27,7 +27,7 @@
 #include <avr/pgmspace.h>
 #include "protocols/uip/uip.h"
 
-#define MAX_DYNAMIC_SYSLOG_BUFFER 500
+#define MAX_DYNAMIC_SYSLOG_BUFFER 250
 
 uint8_t syslog_send_P(PGM_P message);
 uint8_t syslog_send(const char *message);
