@@ -59,15 +59,15 @@ dnl    PIN_CLEAR(Warmwasser);
 dnl  END
   ON CLOCK_MIN == 0 && CLOCK_HOUR == 5 DO 
     Wassersoll = 50;
-    Wasserdiff = 15;
+    Wasserdiff = 20;
   END
   ON CLOCK_MIN == 30 && CLOCK_HOUR == 11 DO 
     Wassersoll = 52;
-    Wasserdiff = 20;
+    Wasserdiff = 25;
   END
-  ON CLOCK_MIN == 0 && CLOCK_HOUR == 23 DO 
+  ON CLOCK_MIN == 30 && CLOCK_HOUR == 23 DO 
     Wassersoll = 58;
-    Wasserdiff = 10;
+    Wasserdiff = 15;
   END
 
   GLOBAL(lastzulauf, uint16_t);
@@ -91,7 +91,7 @@ dnl  END
   THREAD_END(zulauf)
 
   ECMD_GLOBAL(Wassersoll, 52);
-  ECMD_GLOBAL(Wasserdiff, 15);
+  ECMD_GLOBAL(Wasserdiff, 25);
   ECMD_GLOBAL(Wasserforce, 0);
 
   ECMD_GLOBAL(lade_on, 0);
@@ -108,7 +108,7 @@ dnl  END
   THREAD(ofenregelung)
     dnl SYSLOG("<182>ofenregelung laeuft\n");
     ON KTY_GET(Ofen) > 600 && PIN_HIGH(Heizung) && PIN_HIGH(Warmwasser) DO
-	dnl SYSLOG("<182>ofen wird geregelt\n");
+	SYSLOG("o");
 	if ( KTY_GET(Ofen) > 770 ) {
 	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 2 0\n");
 	    heiz_on = 0x2; heiz_off = 0;
@@ -159,7 +159,8 @@ dnl  END
 		}
 
 		if(machwasser) {
-		  SYSLOG("<182>wasser warm\n");
+		  dnl SYSLOG("<182>wasser warm\n");
+		  SYSLOG("w");
 		  // 1B~3s, 20~5s, 2E~10s, 40~20s
 		  // wenn der ofen zu heis wird dann mit wasser aus der heizung abkuehlen
 		  if (KTY_GET(Ofen) > 740 && Wasserforce == 0) {
@@ -194,13 +195,13 @@ dnl  END
 		    heiz_on = 0x30;
 		    if ((KTY_GET(Kessel) + 10) >= KTY_GET(Ofen) || KTY_GET(Ofen) > 710) {
 		      if (bad_off > 0x20) bad_off -= 2;
-		      if (bad_off > 0x60) bad_off = 0x60;
+		      if (bad_off > 0x80) bad_off = 0x80;
 		      heiz_off = bad_off;
 		      SYSLOG("<182>kl %X\n", bad_off);
 		      //bad_on = 0x6F; bad_off = 0x4F;
 		      //heiz_on = 0x6F; heiz_off = 0x4F;
 		    }
-		    else if ((KTY_GET(Kessel) + 60) >= KTY_GET(Ofen) && KTY_GET(Kessel) > 550 ) {
+		    else if ((KTY_GET(Kessel) + 50) >= KTY_GET(Ofen) && KTY_GET(Kessel) > 550 ) {
 		      dnl SYSLOG("<182>gl %X %X\n", bad_off, heiz_off);
 		      //bad_on = 0x3A; bad_off = 0xAB;
 		      //heiz_on = 0x3A; heiz_off = 0xAB;
