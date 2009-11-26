@@ -57,21 +57,26 @@ dnl  // der Pinname "Warmwasser" stammt aus der Konfig vom named_pin
 dnl  ON CLOCK_MIN && CLOCK_HOUR > 6 && CLOCK_HOUR < 19 && KTY_GET(Wasser) < 400 DO 
 dnl    PIN_CLEAR(Warmwasser);
 dnl  END
-  ON CLOCK_MIN == 0 && CLOCK_HOUR == 5 DO 
+  ON CLOCK_MIN == 1 && CLOCK_HOUR == 5 DO 
     Wassersoll = 50;
     Wasserdiff = 20;
+    SYSLOG("<182>ws low\n");
   END
   ON CLOCK_MIN == 30 && CLOCK_HOUR == 11 DO 
     Wassersoll = 52;
     Wasserdiff = 25;
     Wassertrigger = 40;
+    SYSLOG("<182>ws normal\n");
   END
-  ON CLOCK_MIN == 0 && CLOCK_HOUR == 22 DO 
+  ON CLOCK_MIN == 1 && CLOCK_HOUR == 22 DO 
+    Wassersoll = 54;
     Wassertrigger = 50;
+    SYSLOG("<182>wt high\n");
   END
-  ON CLOCK_MIN == 0 && CLOCK_HOUR == 1 DO 
+  ON CLOCK_MIN == 30 && CLOCK_HOUR == 0 DO 
     Wassersoll = 58;
     Wasserdiff = 15;
+    SYSLOG("<182>ws high\n");
   END
 
   GLOBAL(lastzulauf, uint16_t);
@@ -204,11 +209,11 @@ dnl  END
 		    bad_on = 0x30;
 		    heiz_on = 0x30;
 		    if ((KTY_GET(Kessel) + 10) >= KTY_GET(Ofen) || KTY_GET(Ofen) > 710) {
-		      if (bad_off > 0x20) bad_off -= 2;
-		      if (bad_off <= 0x20) bad_off = 0;
+		      if (bad_off > 0x8) bad_off -= 2;
+		      if (bad_off <= 0x8) bad_off = 0;
 		      if (bad_off > 0x80) bad_off = 0x80;
-		      if (heiz_off > 0x20) heiz_off -= 2;
-		      if (heiz_off <= 0x20) heiz_off = 0;
+		      if (heiz_off > 0x8) heiz_off -= 2;
+		      if (heiz_off <= 0x8) heiz_off = 0;
 		      if (heiz_off > 0x80) heiz_off = 0x80;
 		      SYSLOG("<182>kl %X %X\n", bad_off, heiz_off);
 		      //bad_on = 0x6F; bad_off = 0x4F;
@@ -223,9 +228,9 @@ dnl  END
 		      //  hysterese = 20;
 		    }
 		    else {
-		      if (bad_off < 0xB0) bad_off += 0x8;
+		      if (bad_off < 0xC0) bad_off += 0x8;
 		      if (bad_off < 0x50) bad_off = 0x50;
-		      if (heiz_off < 0xB0) heiz_off += 0x8;
+		      if (heiz_off < 0xC0) heiz_off += 0x8;
 		      if (heiz_off < 0x50) heiz_off = 0x50;
 		      SYSLOG("<182>gr %X %X\n", bad_off, heiz_off);
 		      //bad_on = 0x30; bad_off = 0xAB;
