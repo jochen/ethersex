@@ -1,5 +1,5 @@
 #! /bin/sh
-host=sex.metafnord.de
+host=heizung.lugrot.de
 port=2701
 
 usage() { echo "usage: $0 <sym> ";exit 1; }
