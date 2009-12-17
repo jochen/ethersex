@@ -57,23 +57,23 @@ dnl  // der Pinname "Warmwasser" stammt aus der Konfig vom named_pin
 dnl  ON CLOCK_MIN && CLOCK_HOUR > 6 && CLOCK_HOUR < 19 && KTY_GET(Wasser) < 400 DO 
 dnl    PIN_CLEAR(Warmwasser);
 dnl  END
-  ON CLOCK_MIN == 1 && CLOCK_HOUR == 5 DO 
+  ON CLOCK_MIN == 1 && CLOCK_HOUR == 5 && Wassersoll != 50 DO 
     Wassersoll = 50;
     Wasserdiff = 20;
     SYSLOG("<182>ws low\n");
   END
-  ON CLOCK_MIN == 30 && CLOCK_HOUR == 11 DO 
+  ON CLOCK_MIN == 30 && CLOCK_HOUR == 11 && Wassersoll != 52 DO 
     Wassersoll = 52;
     Wasserdiff = 25;
     Wassertrigger = 40;
     SYSLOG("<182>ws normal\n");
   END
-  ON CLOCK_MIN == 1 && CLOCK_HOUR == 22 DO 
+  ON CLOCK_MIN == 1 && CLOCK_HOUR == 22 && Wassersoll != 54 DO 
     Wassersoll = 54;
     Wassertrigger = 50;
     SYSLOG("<182>wt high\n");
   END
-  ON CLOCK_MIN == 30 && CLOCK_HOUR == 0 DO 
+  ON CLOCK_MIN == 30 && CLOCK_HOUR == 0 && Wassersoll != 58 DO 
     Wassersoll = 58;
     Wasserdiff = 15;
     SYSLOG("<182>ws high\n");
@@ -206,20 +206,26 @@ dnl  END
 		  if(KTY_GET(Kessel) > 450){
 		    // 1B~3s, 20~5s, 2E~10s, 40~20s
 		    // 4F~30s, 6F~60s, 88~90s, 9C~120s, C0~180s 
-		    bad_on = 0x30;
-		    heiz_on = 0x30;
-		    if ((KTY_GET(Kessel) + 10) >= KTY_GET(Ofen) || KTY_GET(Ofen) > 710) {
-		      if (bad_off > 0x8) bad_off -= 2;
+		    if ((KTY_GET(Kessel) + 10) >= KTY_GET(Ofen)) {
+		      if (KTY_GET(Kessel) >= KTY_GET(Ofen)) {
+			if (bad_off > 0x8) bad_off >>= 1;
+			if (heiz_off > 0x8) heiz_off >>= 1;
+		      }
+		      else {
+			if (bad_off > 0x8) bad_off -= 2;
+			if (heiz_off > 0x8) heiz_off -= 2;
+		      }
 		      if (bad_off <= 0x8) bad_off = 0;
-		      if (bad_off > 0x80) bad_off = 0x80;
-		      if (heiz_off > 0x8) heiz_off -= 2;
 		      if (heiz_off <= 0x8) heiz_off = 0;
-		      if (heiz_off > 0x80) heiz_off = 0x80;
-		      SYSLOG("<182>kl %X %X\n", bad_off, heiz_off);
+		      if (bad_off > 0xA0) bad_off = 0xA0;
+		      if (heiz_off > 0xA0) heiz_off = 0xA0;
+		      dnl SYSLOG("<182>kl %X %X\n", bad_off, heiz_off);
 		      //bad_on = 0x6F; bad_off = 0x4F;
 		      //heiz_on = 0x6F; heiz_off = 0x4F;
 		    }
 		    else if ((KTY_GET(Kessel) + 50) >= KTY_GET(Ofen) && KTY_GET(Kessel) > 550 ) {
+		      if (bad_off == 0x0) bad_off = 0x20;
+		      if (heiz_off == 0x0) heiz_off = 0x20;
 		      dnl SYSLOG("<182>gl %X %X\n", bad_off, heiz_off);
 		      //bad_on = 0x3A; bad_off = 0xAB;
 		      //heiz_on = 0x3A; heiz_off = 0xAB;
@@ -229,18 +235,26 @@ dnl  END
 		    }
 		    else {
 		      if (bad_off < 0xC0) bad_off += 0x8;
-		      if (bad_off < 0x50) bad_off = 0x50;
 		      if (heiz_off < 0xC0) heiz_off += 0x8;
+		      if (bad_off < 0x50) bad_off = 0x50;
 		      if (heiz_off < 0x50) heiz_off = 0x50;
-		      SYSLOG("<182>gr %X %X\n", bad_off, heiz_off);
+		      if(bad_off_last != 0xC0){
+			dnl SYSLOG("<182>gr %X %X\n", bad_off, heiz_off);
+		      }
 		      //bad_on = 0x30; bad_off = 0xAB;
 		      //heiz_on = 0x30; heiz_off = 0xAB;
 		    }
 		    if(pumpe_select == 2) {
 		      heiz_on = 0;heiz_off = 0;
+		      bad_on = 0x40 + ((KTY_GET(Ofen) & 0x7F) >> 2) & 0xFC;
 		    }
-		    if(pumpe_select == 1) {
+		    else if(pumpe_select == 1) {
 		      bad_on = 0;bad_off = 0;
+		      heiz_on = 0x40 + ((KTY_GET(Ofen) & 0x7F) >> 2) & 0xFC;
+		    }
+		    else {
+		      bad_on = 0x30 + ((KTY_GET(Ofen) & 0x7F) >> 2) & 0xFC;
+		      heiz_on = 0x30 + ((KTY_GET(Ofen) & 0x7F) >> 2) & 0xFC;
 		    }
 		  } 
 		  else {
@@ -251,7 +265,7 @@ dnl  END
 		}
 
 		if(lade_on_last != lade_on || lade_off_last != lade_off){
-		  SYSLOG("<182>lade %X %X\n", lade_on, lade_off);
+		  SYSLOG(" lade %X %X\n", lade_on, lade_off);
 		  UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 3 %X %X\n", lade_on, lade_off);
 		  if(UESENDGET_BUFFER_LEN() == 9) { 
 		    lade_on_last = lade_on;
@@ -259,7 +273,7 @@ dnl  END
 		  }
 		}
 		if(bad_on_last != bad_on || bad_off_last != bad_off){
-		  SYSLOG("<182>bad %X %X\n", bad_on, bad_off);
+		  SYSLOG(" bad %X %X /", bad_on, bad_off);
 		  UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 %X %X\n", bad_on, bad_off);
 		  if(UESENDGET_BUFFER_LEN() == 9) { 
 		    bad_on_last = bad_on;
@@ -267,7 +281,7 @@ dnl  END
 		  }
 		}
 		if(heiz_on_last != heiz_on || heiz_off_last != heiz_off){
-		  SYSLOG("<182>heiz %X %X\n", heiz_on, heiz_off);
+		  SYSLOG(" heiz %X %X\n", heiz_on, heiz_off);
 		  UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 %X %X\n", heiz_on, heiz_off);
 		  if(UESENDGET_BUFFER_LEN() == 9) { 
 		    heiz_on_last = heiz_on;
