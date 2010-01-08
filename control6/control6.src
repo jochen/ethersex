@@ -27,6 +27,7 @@ uint8_t bad_on_last= 1;
 uint8_t bad_off_last= 1;
 uint8_t heiz_on_last = 1;
 uint8_t heiz_off_last = 1;
+uint8_t pumpenanhebung = 0;
 
 CONTROL_START
 
@@ -57,25 +58,25 @@ dnl  // der Pinname "Warmwasser" stammt aus der Konfig vom named_pin
 dnl  ON CLOCK_MIN && CLOCK_HOUR > 6 && CLOCK_HOUR < 19 && KTY_GET(Wasser) < 400 DO 
 dnl    PIN_CLEAR(Warmwasser);
 dnl  END
-  ON CLOCK_MIN == 1 && CLOCK_HOUR == 5 && Wassersoll != 50 DO 
-    Wassersoll = 50;
-    Wasserdiff = 20;
+  ON CLOCK_MIN == 1 && CLOCK_HOUR == 5 && Wassersoll != 49 DO 
+    Wassersoll = 49;
+    Wasserdiff = 30;
     SYSLOG("<182>ws low\n");
   END
-  ON CLOCK_MIN == 30 && CLOCK_HOUR == 11 && Wassersoll != 52 DO 
-    Wassersoll = 52;
-    Wasserdiff = 25;
+  ON CLOCK_MIN == 30 && CLOCK_HOUR == 11 && Wassersoll != 51 DO 
+    Wassersoll = 51;
+    Wasserdiff = 35;
     Wassertrigger = 40;
     SYSLOG("<182>ws normal\n");
   END
-  ON CLOCK_MIN == 1 && CLOCK_HOUR == 22 && Wassersoll != 54 DO 
-    Wassersoll = 54;
+  ON CLOCK_MIN == 1 && CLOCK_HOUR == 22 && Wassersoll != 53 DO 
+    Wassersoll = 53;
     Wassertrigger = 50;
     SYSLOG("<182>wt high\n");
   END
-  ON CLOCK_MIN == 30 && CLOCK_HOUR == 0 && Wassersoll != 58 DO 
-    Wassersoll = 58;
-    Wasserdiff = 15;
+  ON CLOCK_MIN == 30 && CLOCK_HOUR == 0 && Wassersoll != 57 DO 
+    Wassersoll = 57;
+    Wasserdiff = 20;
     SYSLOG("<182>ws high\n");
   END
 
@@ -99,8 +100,8 @@ dnl  END
       WAIT(4)
   THREAD_END(zulauf)
 
-  ECMD_GLOBAL(Wassersoll, 52);
-  ECMD_GLOBAL(Wasserdiff, 25);
+  ECMD_GLOBAL(Wassersoll, 51);
+  ECMD_GLOBAL(Wasserdiff, 35);
   ECMD_GLOBAL(Wasserforce, 0);
   ECMD_GLOBAL(Wassertrigger, 40);
 
@@ -116,8 +117,8 @@ dnl  END
   ECMD_GLOBAL(machwasser, 0);
 
   THREAD(ofenregelung)
-    dnl SYSLOG("<182>ofenregelung laeuft\n");
-    ON KTY_GET(Ofen) > 600 && PIN_HIGH(Heizung) && PIN_HIGH(Warmwasser) DO
+    dnl SYSLOG("<182>ofenregelung laeuft\n");ookpküo
+    if (PIN_HIGH(Heizung) && PIN_HIGH(Warmwasser) && KTY_GET(Ofen) > 600) {
 	SYSLOG("o");
 	if ( KTY_GET(Ofen) > 770 ) {
 	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 2 0\n");
@@ -178,9 +179,9 @@ dnl  END
 		  SYSLOG("w");
 		  // 1B~3s, 20~5s, 2E~10s, 40~20s
 		  // wenn der ofen zu heis wird dann mit wasser aus der heizung abkuehlen
-		  if (KTY_GET(Ofen) > 740 && Wasserforce == 0) {
-		    lade_on = 0x38; lade_off = 0xFF;
-		    bad_on = 0x1C; bad_off = 0x4F;
+		  if (KTY_GET(Ofen) > 760 && Wasserforce == 0) {
+		    lade_on = 0x24; lade_off = 0xFF;
+		    bad_on = 0x1C; bad_off = 0x24;
 		    //heiz_on = 0x0; heiz_off = 0x0;
 		  }
 		  else {
@@ -191,10 +192,10 @@ dnl  END
 		      dnl SYSLOG("<182>wasserpumpe state 0 (kessel tief)\n");
 		    }
 		    else if ( KTY_GET(Kessel) > 635 || KTY_GET(Kessel) > (KTY_GET(Wasser) + 150)) {
-		      lade_on = 0x38; lade_off = 0x38;
+		      lade_on = 0x24; lade_off = 0x24;
 		    }
 		    else{
-		      lade_on = 0x24; lade_off = 0x38;
+		      lade_on = 0x24; lade_off = 0x40;
 		    }
 		  }
 		} 
@@ -206,14 +207,14 @@ dnl  END
 		  if(KTY_GET(Kessel) > 450){
 		    // 1B~3s, 20~5s, 2E~10s, 40~20s
 		    // 4F~30s, 6F~60s, 88~90s, 9C~120s, C0~180s 
-		    if ((KTY_GET(Kessel) + 10) >= KTY_GET(Ofen)) {
+		    if ((KTY_GET(Kessel) + 15) >= KTY_GET(Ofen)) {
 		      if (KTY_GET(Kessel) >= KTY_GET(Ofen)) {
 			if (bad_off > 0x8) bad_off >>= 1;
 			if (heiz_off > 0x8) heiz_off >>= 1;
 		      }
 		      else {
-			if (bad_off > 0x8) bad_off -= 2;
-			if (heiz_off > 0x8) heiz_off -= 2;
+			if (bad_off > 0x8) bad_off -= 4;
+			if (heiz_off > 0x8) heiz_off -= 4;
 		      }
 		      if (bad_off <= 0x8) bad_off = 0;
 		      if (heiz_off <= 0x8) heiz_off = 0;
@@ -223,7 +224,7 @@ dnl  END
 		      //bad_on = 0x6F; bad_off = 0x4F;
 		      //heiz_on = 0x6F; heiz_off = 0x4F;
 		    }
-		    else if ((KTY_GET(Kessel) + 50) >= KTY_GET(Ofen) && KTY_GET(Kessel) > 550 ) {
+		    else if ((KTY_GET(Kessel) + 80) >= KTY_GET(Ofen) && KTY_GET(Kessel) > 500 ) {
 		      if (bad_off == 0x0) bad_off = 0x20;
 		      if (heiz_off == 0x0) heiz_off = 0x20;
 		      dnl SYSLOG("<182>gl %X %X\n", bad_off, heiz_off);
@@ -234,27 +235,33 @@ dnl  END
 		      //  hysterese = 20;
 		    }
 		    else {
-		      if (bad_off < 0xC0) bad_off += 0x8;
-		      if (heiz_off < 0xC0) heiz_off += 0x8;
+		      if (bad_off < 0xF0) bad_off += 0x8;
+		      if (heiz_off < 0xF0) heiz_off += 0x8;
 		      if (bad_off < 0x50) bad_off = 0x50;
 		      if (heiz_off < 0x50) heiz_off = 0x50;
-		      if(bad_off_last != 0xC0){
+		      if(bad_off_last != 0xF0){
 			dnl SYSLOG("<182>gr %X %X\n", bad_off, heiz_off);
 		      }
 		      //bad_on = 0x30; bad_off = 0xAB;
 		      //heiz_on = 0x30; heiz_off = 0xAB;
 		    }
+		    if (KTY_GET(Ofen) > 650) {
+		        pumpenanhebung = (((KTY_GET(Ofen) & 0x7F) >> 2) & 0xFC);
+		    }
+		    else {
+			pumpenanhebung = 0;
+		    }
 		    if(pumpe_select == 2) {
 		      heiz_on = 0;heiz_off = 0;
-		      bad_on = 0x40 + ((KTY_GET(Ofen) & 0x7F) >> 2) & 0xFC;
+		      bad_on = 0x58 + pumpenanhebung;
 		    }
 		    else if(pumpe_select == 1) {
 		      bad_on = 0;bad_off = 0;
-		      heiz_on = 0x40 + ((KTY_GET(Ofen) & 0x7F) >> 2) & 0xFC;
+		      heiz_on = 0x58 + pumpenanhebung;
 		    }
 		    else {
-		      bad_on = 0x30 + ((KTY_GET(Ofen) & 0x7F) >> 2) & 0xFC;
-		      heiz_on = 0x30 + ((KTY_GET(Ofen) & 0x7F) >> 2) & 0xFC;
+		        bad_on = 0x48 + pumpenanhebung;
+		        heiz_on = 0x48 + pumpenanhebung;
 		    }
 		  } 
 		  else {
@@ -292,15 +299,75 @@ dnl  END
 	    END
 	  END
 	}
-      END
+      }
+      else if((!PIN_HIGH(Heizung) || !PIN_HIGH(Warmwasser)) && KTY_GET(Ofen) > 600) {
+	SYSLOG("u");
+	PIN_CLEAR(Absenkung);	
+	if (PIN_LOW(Heizzirkulationspumpe)) {
+	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 2 0\n");
+	    heiz_on = 0x2; heiz_off = 0;
+	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 2 0\n");
+	    bad_on = 0x2; bad_off = 0;
+	}
+	else {
+	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 0 0\n");
+	    heiz_on = 0; heiz_off = 0;
+	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 0 0\n");
+	    bad_on = 0; bad_off = 0;
+	}
+	if (PIN_LOW(Wasserladepumpe)) {
+	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 3 2 0\n");
+	    lade_on = 0x2; lade_off = 0;	
+	}
+	else {
+	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 3 0 0\n");
+	    lade_on = 0; lade_off = 0;
+	}
+      }
+      else if((!PIN_HIGH(Heizung) || !PIN_HIGH(Warmwasser)) && KTY_GET(Ofen) < 600) {
+	SYSLOG("a");
+	PIN_SET(Absenkung);	
+	if (PIN_LOW(Heizzirkulationspumpe)) {
+	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 2 0\n");
+	    heiz_on = 0x2; heiz_off = 0;
+	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 2 0\n");
+	    bad_on = 0x2; bad_off = 0;
+	}
+	else {
+	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 0 0\n");
+	    heiz_on = 0; heiz_off = 0;
+	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 0 0\n");
+	    bad_on = 0; bad_off = 0;
+	}
+	if (PIN_LOW(Wasserladepumpe)) {
+	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 3 2 0\n");
+	    lade_on = 0x2; lade_off = 0;	
+	}
+	else {
+	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 3 0 0\n");
+	    lade_on = 0; lade_off = 0;
+	}
+      }
     WAIT(15)
   THREAD_END(ofenregelung)
+
+  THREAD(oelundofen)
+    dnl SYSLOG("<182>oelundofen laeuft\n");
+    ON PIN_HIGH(Heizung) && PIN_HIGH(Warmwasser) && KTY_GET(AussenNord) < 0 && KTY_GET(Ofen) < 630 && KTY_GET(Kessel) < 400 DO
+	PIN_CLEAR(Heizung);
+    END
+    ON (!PIN_HIGH(Heizung) || !PIN_HIGH(Warmwasser)) && KTY_GET(Ofen) > 650 DO
+	PIN_SET(Heizung);
+    END
+    WAIT(300)
+  THREAD_END(oelundofen)
 
 
 
   ON STARTUP DO
       THREAD_START(zulauf);
       THREAD_START(ofenregelung);
+      THREAD_START(oelundofen);
       PIN_SET(Warmwasser);
       PIN_SET(Heizung);
   END
@@ -318,13 +385,13 @@ dnl    PIN_CLEAR(Heizung);
 dnl  END
 
 dnl / pumpe aus wenn der ofen in der nacht abkühlt  
-  ON CLOCK_MIN % 16 == 0 && CLOCK_HOUR > 0 && CLOCK_HOUR < 5 && KTY_GET(Ofen) < 600 && KTY_GET(Kessel) < 590 DO
-    heizpumpe_on_send(0);
+  dnl ON CLOCK_MIN % 16 == 0 && CLOCK_HOUR > 0 && CLOCK_HOUR < 5 && KTY_GET(Ofen) < 600 && KTY_GET(Kessel) < 590 DO
+   dnl ladepumpe_on_send(0);
+    dnl heizpumpe_on_send(0);
     dnl UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 0 0\n");
     dnl UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 0 0\n");
-    ladepumpe_on_send(0);
     dnl UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 3 0 0\n");
-  END
+  dnl END
 
   ON PIN_FALLING(Heizzirkulationspumpe) DO
     heizpumpe_on_send(1);
@@ -334,12 +401,12 @@ dnl / pumpe aus wenn der ofen in der nacht abkühlt
     heizpumpe_on_send(0);
     dnl UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 0 0\n");
   END
-  ON CLOCK_MIN  % 8 == 0 &&  PIN_LOW(Heizung) DO
-    ON PIN_LOW(Heizzirkulationspumpe) DO
-      heizpumpe_on_send(1);
+  dnl ON CLOCK_MIN  % 8 == 0 &&  PIN_LOW(Heizung) DO
+  dnl  ON PIN_LOW(Heizzirkulationspumpe) DO
+  dnl    heizpumpe_on_send(1);
       dnl UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 1 0\n");
-    END
-  END
+  dnl  END
+  dnl END
 
   ON PIN_FALLING(Wasserladepumpe) DO
     ladepumpe_on_send(2);
@@ -349,12 +416,12 @@ dnl / pumpe aus wenn der ofen in der nacht abkühlt
     ladepumpe_on_send(0);
     dnl UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 3 0 0\n");
   END
-  ON CLOCK_MIN % 8  == 0 && PIN_LOW(Warmwasser) DO
-    ON PIN_LOW(Wasserladepumpe) DO
-      ladepumpe_on_send(2);
-      dnl UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 3 2 0\n");
-    END
-  END
+  dnl ON CLOCK_MIN % 8  == 0 && PIN_LOW(Warmwasser) DO
+  dnl  ON PIN_LOW(Wasserladepumpe) DO
+  dnl    ladepumpe_on_send(2);
+  dnl    dnl UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 3 2 0\n");
+  dnl  END
+  dnl END
 
 dnl // eine globale Variable fuer ecmd verwendet man so
 dnl ECMD_GLOBAL(Wassersoll, 20);
