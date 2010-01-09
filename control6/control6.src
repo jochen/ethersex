@@ -302,7 +302,7 @@ dnl  END
       }
       else if((!PIN_HIGH(Heizung) || !PIN_HIGH(Warmwasser)) && KTY_GET(Ofen) > 600) {
 	SYSLOG("u");
-	PIN_CLEAR(Absenkung);	
+	PIN_SET(Absenkung);	
 	if (PIN_LOW(Heizzirkulationspumpe)) {
 	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 2 0\n");
 	    heiz_on = 0x2; heiz_off = 0;
@@ -326,7 +326,7 @@ dnl  END
       }
       else if((!PIN_HIGH(Heizung) || !PIN_HIGH(Warmwasser)) && KTY_GET(Ofen) < 600) {
 	SYSLOG("a");
-	PIN_SET(Absenkung);	
+	PIN_CLEAR(Absenkung);	
 	if (PIN_LOW(Heizzirkulationspumpe)) {
 	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 2 0\n");
 	    heiz_on = 0x2; heiz_off = 0;
