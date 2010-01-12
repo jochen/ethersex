@@ -31,17 +31,6 @@ uint8_t pumpenanhebung = 0;
 
 CONTROL_START
 
-void heizpumpe_on_send(uint8_t value){
-    UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 %X 0\n", value);
-    UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 %X 0\n", value);
-    bad_on_last = value; bad_off_last = 0;
-    heiz_on_last = value; heiz_off_last = 0;
-};
-void ladepumpe_on_send(uint8_t value){
-   UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 3 %X 0\n", value);
-   lade_on_last = value; lade_off_last = 0;
-};
-
 dnl // dnl ist der kommentar fuer m4. Zum aktivieren der beispiele einfach das dnl entfernen.
 
 dnl  // dieses Beispiel zeigt anhand meiner Heizungssteuerung wie man zeitverzoegert die Wasserheizung
@@ -300,33 +289,8 @@ dnl  END
 	  END
 	}
       }
-      else if((!PIN_HIGH(Heizung) || !PIN_HIGH(Warmwasser)) && KTY_GET(Ofen) > 600) {
+      else {
 	SYSLOG("u");
-	PIN_SET(Absenkung);	
-	if (PIN_LOW(Heizzirkulationspumpe)) {
-	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 2 0\n");
-	    heiz_on = 0x2; heiz_off = 0;
-	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 2 0\n");
-	    bad_on = 0x2; bad_off = 0;
-	}
-	else {
-	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 0 0\n");
-	    heiz_on = 0; heiz_off = 0;
-	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 0 0\n");
-	    bad_on = 0; bad_off = 0;
-	}
-	if (PIN_LOW(Wasserladepumpe)) {
-	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 3 2 0\n");
-	    lade_on = 0x2; lade_off = 0;	
-	}
-	else {
-	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 3 0 0\n");
-	    lade_on = 0; lade_off = 0;
-	}
-      }
-      else if((!PIN_HIGH(Heizung) || !PIN_HIGH(Warmwasser)) && KTY_GET(Ofen) < 600) {
-	SYSLOG("a");
-	PIN_CLEAR(Absenkung);	
 	if (PIN_LOW(Heizzirkulationspumpe)) {
 	    UESENDGET(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 2 0\n");
 	    heiz_on = 0x2; heiz_off = 0;
@@ -355,9 +319,19 @@ dnl  END
     dnl SYSLOG("<182>oelundofen laeuft\n");
     ON PIN_HIGH(Heizung) && PIN_HIGH(Warmwasser) && KTY_GET(AussenNord) < 0 && KTY_GET(Ofen) < 630 && KTY_GET(Kessel) < 400 DO
 	PIN_CLEAR(Heizung);
+        SYSLOG(" oel ein\n");
     END
     ON (!PIN_HIGH(Heizung) || !PIN_HIGH(Warmwasser)) && KTY_GET(Ofen) > 650 DO
 	PIN_SET(Heizung);
+        SYSLOG(" oel aus\n");
+    END
+    ON !PIN_HIGH(Heizung) && PIN_LOW(Absenkung) && KTY_GET(Ofen) > 600 DO
+	PIN_SET(Absenkung);
+        SYSLOG(" absenkung ein\n");	
+    END
+    ON !PIN_HIGH(Heizung) && PIN_HIGH(Absenkung) && KTY_GET(Ofen) < 600 DO
+	PIN_CLEAR(Absenkung);	
+        SYSLOG(" absenkung aus\n");
     END
     WAIT(300)
   THREAD_END(oelundofen)
@@ -376,52 +350,10 @@ dnl  END
     PIN_CLEAR(Warmwasser);
   END
   ON CLOCK_MIN && PIN_LOW(Warmwasser) && PIN_HIGH(Heizung) && KTY_GET(Ofen) < 600 && (KTY_GET(Kessel) - 50) < KTY_GET(Wasser) DO
-    ladepumpe_on_send(0);
-    dnl UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 3 0 0\n");
+    UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 3 0 0\n");
   END
 
-dnl  ON CLOCK_MIN == 0 && CLOCK_HOUR == 6 && KTY_GET(AussenNord) < 30 && KTY_GET(Wohnzimmer) < 200 DO
-dnl    PIN_CLEAR(Heizung);
-dnl  END
 
-dnl / pumpe aus wenn der ofen in der nacht abkühlt  
-  dnl ON CLOCK_MIN % 16 == 0 && CLOCK_HOUR > 0 && CLOCK_HOUR < 5 && KTY_GET(Ofen) < 600 && KTY_GET(Kessel) < 590 DO
-   dnl ladepumpe_on_send(0);
-    dnl heizpumpe_on_send(0);
-    dnl UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 0 0\n");
-    dnl UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 2 0 0\n");
-    dnl UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 3 0 0\n");
-  dnl END
-
-  ON PIN_FALLING(Heizzirkulationspumpe) DO
-    heizpumpe_on_send(1);
-    dnl UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 1 0\n");
-  END
-  ON PIN_RISING(Heizzirkulationspumpe) DO
-    heizpumpe_on_send(0);
-    dnl UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 0 0\n");
-  END
-  dnl ON CLOCK_MIN  % 8 == 0 &&  PIN_LOW(Heizung) DO
-  dnl  ON PIN_LOW(Heizzirkulationspumpe) DO
-  dnl    heizpumpe_on_send(1);
-      dnl UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 1 1 0\n");
-  dnl  END
-  dnl END
-
-  ON PIN_FALLING(Wasserladepumpe) DO
-    ladepumpe_on_send(2);
-    dnl UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 3 2 0\n");
-  END
-  ON PIN_RISING(Wasserladepumpe) && PIN_LOW(Heizung) DO
-    ladepumpe_on_send(0);
-    dnl UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 3 0 0\n");
-  END
-  dnl ON CLOCK_MIN % 8  == 0 && PIN_LOW(Warmwasser) DO
-  dnl  ON PIN_LOW(Wasserladepumpe) DO
-  dnl    ladepumpe_on_send(2);
-  dnl    dnl UESEND(2001:6f8:1209:23:0:0:ff00:ee11, "pumpe 3 2 0\n");
-  dnl  END
-  dnl END
 
 dnl // eine globale Variable fuer ecmd verwendet man so
 dnl ECMD_GLOBAL(Wassersoll, 20);
