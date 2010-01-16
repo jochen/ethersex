@@ -317,19 +317,19 @@ dnl  END
 
   THREAD(oelundofen)
     dnl SYSLOG("<182>oelundofen laeuft\n");
-    ON PIN_HIGH(Heizung) && PIN_HIGH(Warmwasser) && KTY_GET(AussenNord) < 0 && KTY_GET(Ofen) < 630 && KTY_GET(Kessel) < 400 DO
+    ON PIN_HIGH(Heizung) && PIN_HIGH(Warmwasser) && KTY_GET(AussenNord) < 0 && KTY_GET(Ofen) < 610 && KTY_GET(Kessel) < 360 DO
 	PIN_CLEAR(Heizung);
         SYSLOG(" oel ein\n");
     END
-    ON (!PIN_HIGH(Heizung) || !PIN_HIGH(Warmwasser)) && KTY_GET(Ofen) > 650 DO
+    ON (!PIN_HIGH(Heizung) || !PIN_HIGH(Warmwasser)) && KTY_GET(Ofen) > 635 DO
 	PIN_SET(Heizung);
         SYSLOG(" oel aus\n");
     END
-    ON !PIN_HIGH(Heizung) && PIN_LOW(Absenkung) && KTY_GET(Ofen) > 600 DO
+    ON !PIN_HIGH(Heizung) && PIN_LOW(Absenkung) && KTY_GET(Ofen) > 590 DO
 	PIN_SET(Absenkung);
         SYSLOG(" absenkung ein\n");	
     END
-    ON !PIN_HIGH(Heizung) && PIN_HIGH(Absenkung) && KTY_GET(Ofen) < 600 DO
+    ON !PIN_HIGH(Heizung) && PIN_HIGH(Absenkung) && KTY_GET(Ofen) < 500 DO
 	PIN_CLEAR(Absenkung);	
         SYSLOG(" absenkung aus\n");
     END
