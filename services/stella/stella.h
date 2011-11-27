@@ -39,7 +39,8 @@ enum stella_set_function
   STELLA_SET_IMMEDIATELY,
   STELLA_SET_FADE,
   STELLA_SET_FLASHY,
-  STELLA_SET_IMMEDIATELY_RELATIVE
+  STELLA_SET_IMMEDIATELY_RELATIVE,
+  STELLA_GETALL = 255
 };
 
 enum
@@ -97,13 +98,12 @@ extern struct stella_timetable_struct* cal_table;
 extern volatile enum stella_update_sync stella_sync;
 extern volatile uint8_t stella_fade_counter;
 
-extern uint8_t stella_portmask_neg[STELLA_PORT_COUNT];
+extern uint8_t stella_portmask[STELLA_PORT_COUNT];
 extern uint8_t stella_fade_step;
 extern uint8_t stella_fade_func;
 
 extern uint8_t stella_brightness[STELLA_CHANNELS];
 extern uint8_t stella_fade[STELLA_CHANNELS];
-
 /* stella.c */
 void stella_init(void);
 void stella_process(void);
@@ -118,7 +118,6 @@ void stella_loadFromEEROMFading(void);
 void stella_storeToEEROM(void);
 
 uint8_t stella_output_channels(void* target);
-void stella_dmx(uint8_t* dmx_data, uint8_t len);
 
 #endif  /* STELLA_SUPPORT */
 

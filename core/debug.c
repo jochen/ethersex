@@ -19,7 +19,9 @@
  * http://www.gnu.org/copyleft/gpl.html
  */
 
+#include <avr/io.h>
 #include <stdio.h>
+
 #include "config.h"
 #include "core/debug.h"
 #include "protocols/ecmd/parser.h"
@@ -42,7 +44,6 @@ char *debug_binary (uint8_t v) {
 }
 
 /* prototypes */
-int debug_uart_put(char d, FILE *stream);
 void soft_uart_putchar(uint8_t c);
 
 #define USE_USART 0
@@ -91,6 +92,12 @@ debug_uart_put (char d, FILE *stream)
 #endif
 }
 
+void noinline
+debug_putstr_ (const char *d)
+{
+while (*d != 0) {debug_putchar(*d++);}
+}
+
 void
 debug_process_uart (void)
 {
@@ -119,7 +126,7 @@ debug_process_uart (void)
             int l;
 
             do {
-                l = ecmd_parse_command(buf, output, LEN);
+                l = ecmd_parse_command(buf, output, OUTPUTLEN);
                 if (is_ECMD_FINAL(l) || is_ECMD_AGAIN(l)) {
                     output[is_ECMD_AGAIN(l) ? ECMD_AGAIN(l) : l] = 0;
                     printf_P(PSTR("%s\n"), output);
@@ -129,11 +136,14 @@ debug_process_uart (void)
             ptr = buf;
         } else {
             debug_uart_put(data, stdout);
-
-            if (ptr < &buf[LEN-1])
-                *ptr++ = data;
+            if (data == '\b') {if (ptr > &buf[0]) ptr--;}
             else
-                debug_printf("not enough space for storing '%c'\n", data);
+            {
+                if (ptr < &buf[LEN-1])
+                    *ptr++ = data;
+                else
+                    debug_printf("not enough space for storing '%c'\n", data);
+            }
         }
     }
 #endif  /* ECMD_PARSER_SUPPORT && !SOFT_UART_SUPPORT*/

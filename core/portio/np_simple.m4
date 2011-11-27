@@ -34,7 +34,7 @@ divert(0)
 const char PROGMEM np_str_on[] = "on";
 const char PROGMEM np_str_off[] = "off";
 
-static char
+static int8_t
 np_simple_check (char *cmd)
 {
   /* Check for either `pin set ... 1' or `pin set ... on',
@@ -63,7 +63,7 @@ divert(0)dnl
 int16_t parse_cmd_$1 (char *cmd, char *output, uint16_t len)
 {
   /* config: $2 $3 */
-  char i = np_simple_check (cmd);
+  int8_t i = np_simple_check (cmd);
   if (i < 0) return -1;
 
   if ($3(i))
@@ -116,21 +116,21 @@ int16_t parse_cmd_$1 (char *cmd, char *output, uint16_t len)
   /* Disable interrupts to omit interference */
   uint8_t sreg = SREG; cli();
 
-  uint8_t i = NP_PIN(substr($2, 1, 1));
+  uint8_t i = NP_PORT(substr($2, 1, 1));
   NP_PORT(substr($2, 1, 1)) = i  ^ _BV($2);
 
   SREG = sreg;			/* Possibly re-enable interrupts. */
 #else  /* PINx_TOGGLE_WORKAROUND */
   /* First we read the current pin-state and afterwards toggle
      the pin by writing to the PINx register. */
-  uint8_t i = NP_PIN(substr($2, 1, 1)) & _BV($2);
+  uint8_t i = NP_PORT(substr($2, 1, 1));
 
   /* now toggle the port */
   NP_PIN(substr($2, 1, 1)) |= _BV($2);
 #endif  /* not PINx_TOGGLE_WORKAROUND */
 
   /* say just the opposite of the old situation ... */
-  REPLY (output, !$3(i));
+  REPLY (output, !$3(i & _BV($2)));
 }
 #endif  /* ECMD_PARSER_SUPPORT */
 ')

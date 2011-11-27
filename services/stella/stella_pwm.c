@@ -38,25 +38,49 @@ struct stella_timetable_entry* current = 0;
 /* Use port mask to switch pins on if timetable says so and
  * set the next trigger point in time for the compare interrupt.
  * */
-ISR(_VECTOR_OUTPUT_COMPARE2)
+#ifdef STELLA_LOW_PRIORITY
+// other interrupts can interrupt this ISR
+ISR(STELLA_COMPARE_VECTOR, ISR_NOBLOCK)
 {
+	// disable the interrupt we are in
+	// makes sure we don't interrupt ourselves
+	STELLA_TIMSK &= ~_BV(STELLA_COMPARE_IE);
+#else
+ISR(STELLA_COMPARE_VECTOR)
+{
+#endif
 	// Activate all timetable entries for this timepoint
 	// We may have more than one for a certain timepoint, if ports in the timetable entries differ
 	while (current) {
 		ACCESS_IO(current->port.port) |= current->port.mask;
 		current = current->next;
 
-		if (current && _OUTPUT_COMPARE_REG2 != current->value) {
-			_OUTPUT_COMPARE_REG2 = current->value;
+		if (current && STELLA_COMPARE_REG != current->value) {
+			STELLA_COMPARE_REG = current->value;
 			break;
 		}
 	}
+
+#ifdef STELLA_LOW_PRIORITY
+	// enable our interrupt again
+	STELLA_TIMSK |= _BV(STELLA_COMPARE_IE);
+#endif
 }
 
 /* If channel values have been updated (update_table is set) update all i_* variables.
  * Start the next pwm round. */
-ISR(_VECTOR_OVERFLOW2)
+
+#ifdef STELLA_LOW_PRIORITY
+// other interrupts can interrupt this ISR
+ISR(STELLA_OVERFLOW_VECTOR, ISR_NOBLOCK)
 {
+	// disable the interrupt we are in
+	// makes sure we don't interrupt ourselves
+	STELLA_TIMSK &= ~_BV(STELLA_TOIE);
+#else
+ISR(STELLA_OVERFLOW_VECTOR)
+{
+#endif
 	/* if new values are available, work with them */
 	if(stella_sync == NEW_VALUES)
 	{
@@ -76,12 +100,15 @@ ISR(_VECTOR_OVERFLOW2)
 	/* Start the next pwm round */
 	current = int_table->head;
 
-	/* Deactivate pins except those used by the first timetable entry.
-	 * Only deactivate pins if they belong to stella.
-	 * Activate pins used by the first timetable entry. */
+	/* Leave all non-stella-pins the same and activate pins used by the first timetable entry. */
 	for (uint8_t i=0;i<STELLA_PORT_COUNT;++i)
-		ACCESS_IO(int_table->port[i].port) = (ACCESS_IO(int_table->port[i].port) & stella_portmask_neg[i]) | int_table->port[i].mask;
+		ACCESS_IO(int_table->port[i].port) = (ACCESS_IO(int_table->port[i].port) & ~(uint8_t)stella_portmask[i]) | int_table->port[i].mask;
 
 	if (current)
-		_OUTPUT_COMPARE_REG2 = current->value;
+		STELLA_COMPARE_REG = current->value;
+
+#ifdef STELLA_LOW_PRIORITY
+	// enable our interrupt again
+	STELLA_TIMSK |= _BV(STELLA_TOIE);
+#endif
 }

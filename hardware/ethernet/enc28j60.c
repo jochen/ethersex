@@ -27,18 +27,29 @@
 #include <util/delay.h>
 #include <avr/interrupt.h>
 
-
 #include "config.h"
 #include "core/debug.h"
 #include "hardware/ethernet/enc28j60.h"
 #include "network.h"
 #include "core/spi.h"
 #include "core/bit-macros.h"
-#include "core/eeprom.h"
 
 /* global variables */
 uint8_t enc28j60_current_bank = 0;
 int16_t enc28j60_next_packet_pointer;
+
+#define DEBUG_REV6_WORKAROUND
+#ifdef DEBUG_REV6_WORKAROUND
+ uint8_t macon1 = 0;
+ uint8_t macon3 = 0;
+ uint8_t debug_guard = 0; /* if true, ENC28j60 is in reset process */
+ 
+ #define DEBUG_GUARD debug_guard
+ #define MACON1_PP macon1++
+ #define MACON3_PP macon3++
+#endif
+
+
 
 /* module local macros */
 #ifdef RFM12_IP_SUPPORT
@@ -234,7 +245,7 @@ void reset_controller(void)
 
     /* wait until the controller is ready */
 #ifdef ENC28J60_REV5_WORKAROUND
-    _delay_ms (2);
+    _delay_ms (2);  /* see errata #2: Module Reset */
 #else
     while (!(read_control_register(REG_ESTAT) & _BV(CLKRDY)));
 #endif
@@ -259,6 +270,9 @@ void reset_rx(void)
 
 void init_enc28j60(void)
 {
+#ifdef DEBUG_REV6_WORKAROUND
+    debug_guard=0xff;
+#endif
 
     reset_controller();
 
@@ -353,6 +367,11 @@ void init_enc28j60(void)
     /* set auto-increment bit */
     bit_field_set(REG_ECON2, _BV(AUTOINC));
 
+#ifdef DEBUG_REV6_WORKAROUND
+    debug_guard=0x0;
+#endif
+
+
 }
 
 void switch_bank(uint8_t bank)
@@ -365,11 +384,36 @@ void switch_bank(uint8_t bank)
 
 }
 
+void enc28j60_periodic(void) 
+{
+    uint8_t mask = _BV(PADCFG0) | _BV(TXCRCEN) | _BV(FRMLNEN);
+#ifdef DEBUG_REV6_WORKAROUND
+  if (!DEBUG_GUARD) {
+    if (   (read_control_register(REG_MACON3) & mask) != mask ) {
+ 	MACON1_PP;	
+	init_enc28j60();
+	}
+    if (   (read_control_register(REG_MACON1))        != 0x0D  ) {
+	MACON3_PP;
+	init_enc28j60();
+    }
+  }
+#else
+    if (   ((read_control_register(REG_MACON3) & mask) != mask  )
+        || ( read_control_register(REG_MACON1)         != 0x0D  ) ) {
+        init_enc28j60();
+    }
+#endif
+}
+
 /* dump out all the interesting registers
  * (mainly copied from avrlib) */
 #ifdef DEBUG_ENC28J60
-void dump_debug_registers(void)
+int16_t parse_cmd_enc_dump(char *cmd, char *output, uint16_t len)
 {
+    (void) cmd;
+    (void) output;
+    (void) len;
 
     debug_printf("RevID: 0x%02x\n", read_control_register(REG_EREVID));
 
@@ -425,88 +469,19 @@ void dump_debug_registers(void)
         read_control_register(REG_EDMASTL),
         read_control_register(REG_EDMANDH),
         read_control_register(REG_EDMANDL));
+
+#ifdef DEBUG_REV6_WORKAROUND
+    debug_printf("debug: macon1= %d, macon3= %d \n", macon1, macon3);
+#endif
+
+    return 0;
 }
 #endif
-
-
-
-
-void
-network_config_load (void)
-{
-    /* load settings from eeprom */
-#ifdef EEPROM_SUPPORT
-  eeprom_restore(mac, uip_ethaddr.addr, 6);
-#else 
-  memcpy_P(uip_ethaddr.addr, PSTR(CONF_ETHERRAPE_MAC), 6);
-#endif
-
-#if defined(BOOTP_SUPPORT)				\
-    || (IPV6_SUPPORT && !defined(IPV6_STATIC_SUPPORT))
-    return;
-
-#else
-
-    uip_ipaddr_t ip;
-    (void) ip;		/* Keep GCC quiet. */
-
-    /* Configure the IP address. */
-#ifdef EEPROM_SUPPORT
-    /* Please Note: ip and &ip are NOT the same (cpp hell) */
-    eeprom_restore_ip(ip, &ip);
-#else
-    set_CONF_ETHERRAPE_IP(&ip);
-#endif
-    uip_sethostaddr(&ip);
-
-
-    /* Configure prefix length (IPv6). */
-#ifdef IPV6_SUPPORT
-    uip_setprefixlen(CONF_ENC_IP6_PREFIX_LEN);
-#endif
-
-
-#ifdef IPV4_SUPPORT
-    /* Configure the netmask (IPv4). */
-#ifdef EEPROM_SUPPORT
-    /* Please Note: ip and &ip are NOT the same (cpp hell) */
-    eeprom_restore_ip(netmask, &ip);
-#else
-    set_CONF_ETHERRAPE_IP4_NETMASK(&ip);
-#endif
-    uip_setnetmask(&ip);
-#endif  /* IPV4_SUPPORT */
-
-    /* Configure the default gateway  */
-#ifdef EEPROM_SUPPORT
-    /* Please Note: ip and &ip are NOT the same (cpp hell) */
-    eeprom_restore_ip(gateway, &ip);
-#else
-    set_CONF_ETHERRAPE_GATEWAY(&ip);
-#endif
-    uip_setdraddr(&ip);
-#endif	/* No autoconfiguration. */
-}
-
 
 /*
   -- Ethersex META --
   header(hardware/ethernet/enc28j60.h)
   net_init(init_enc28j60)
   mainloop(network_process)
-  timer(1, `
-#       if UIP_CONF_IPV6
-        if (counter == 5) {
-            // Send a router solicitation every 10 seconds, as long
-            // as we only got a link local address.  First time one
-            // second after boot 
-#           ifndef IPV6_STATIC_SUPPORT
-            if(((u16_t *)(uip_hostaddr))[0] == HTONS(0xFE80)) {
-                uip_router_send_solicitation();
-                transmit_packet();
-            }
-#           endif
-        }
-#       endif // UIP_CONF_IPV6 
-')
+  timer(50, enc28j60_periodic())
 */

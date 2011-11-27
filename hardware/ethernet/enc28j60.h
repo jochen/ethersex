@@ -29,6 +29,8 @@
 #include <avr/io.h>
 #include "config.h"
 
+#ifdef ENC28J60_SUPPORT
+
 #define noinline __attribute__((noinline))
 
 /* spi commands */
@@ -319,6 +321,7 @@ void noinline write_phy(uint8_t address, uint16_t data);
 void noinline reset_controller(void);
 void noinline reset_rx(void);
 void init_enc28j60(void);
+void enc28j60_periodic(void);
 void noinline switch_bank(uint8_t bank);
 void network_config_load(void);
 
@@ -328,4 +331,5 @@ void dump_debug_registers(void);
 #define dump_debug_registers(x)
 #endif
 
+#endif  /* ENC28J60_SUPPORT */
 #endif /* _ENC28J60_H */

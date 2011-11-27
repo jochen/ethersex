@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2007 by Christian Dietrich <stettberger@dokucode.de>
+ * Copyright (c) 2010 by Hans Baechle <hans.baechle@gmx.net>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -51,6 +52,21 @@ ntpd_net_main(void)
   if (uip_newdata()) {
     struct ntp_packet *pkt = uip_appdata;
     uint32_t last_sync = clock_last_sync();
+    uint32_t current_timestamp = 0;
+    uint8_t  current_fraction  = 0;
+    /*We try to minimize the time between the two calls*/
+    current_timestamp=clock_get_time();
+    current_fraction=TIMER_8_AS_1_COUNTER_CURRENT;
+    /* Set our time to the packet */
+    pkt->rec.seconds = HTONL(current_timestamp + JAN_1970);
+    /*  the clock timer is 8-bit and gives us steps of 0.0039 seconds,
+	the fraction part of the ntp protocol has an accuracy of 32 bit, therefore we shift
+	with 24 (not optimized: counter_fraction/255.00*4294967296) */
+    pkt->rec.fraction = HTONL((uint32_t)current_fraction << 24);
+
+    /* set the update time (reference clock) */
+    pkt->reftime.seconds = HTONL(last_sync + JAN_1970);
+    pkt->reftime.fraction=HTONL((uint32_t)clock_last_sync_tick() << 24);
 
     /* We are an server and there is no error warning */
     pkt->li_vn_mode = 0x24;
@@ -59,34 +75,41 @@ ntpd_net_main(void)
     pkt->org.seconds = pkt->xmt.seconds;
     pkt->org.fraction = pkt->xmt.fraction;
 
-    /* Set our time to the packet */
-    pkt->rec.seconds = HTONL(clock_get_time() + 2208988800);
-    pkt->rec.fraction = HTONL(((uint32_t)TCNT2) << 7);
-
-    /* copy the recieve time also to the transmit time */
-    pkt->xmt.seconds = pkt->rec.seconds;
-    pkt->xmt.fraction = pkt->rec.fraction;
-
-    /* set the reference clock */
-    pkt->reftime.seconds = HTONL(last_sync + 2208988800);
-
     /* Set what type of clock we are */
 #if defined(NTP_SUPPORT) || defined(DCF77_SUPPORT)
     int stratum = ntp_getstratum();
 
     pkt->stratum = (last_sync > 0) ? stratum + 1 : 0;
     
-    if (stratum == 1)
-	pkt->refid = 0x44434600;	/* DCF in Network byte order */
+    if (stratum == 0)
+	{
+	pkt->refid = 0x61464344;	/* DCFa in Network byte order */
+	pkt->precision = 0xEC;
+	pkt->rootdispersion = 0x90000000;
+	}
     else {
 #ifdef NTP_SUPPORT
         if (sizeof(uip_ipaddr_t) == 4)
+          {
             uip_ipaddr_copy((uip_ipaddr_t *) &pkt->refid, ntp_getserver());
+	    pkt->precision = 0xEC;
+	    pkt->rootdispersion = 0x95000000;
+	  }
         else
 #endif /* NTP_SUPPORT */
-            pkt->refid = 0x3F3F3F00;	/* some virtual identifer */
+	  {
+            pkt->refid = 0x76677976;	/* some virtual identifer */
+	    pkt->precision = 0xEC;
+	    pkt->rootdispersion = 0xA5000000;
+	  }
     }
 #endif /* NTP_SUPPORT || DCF_SUPPORT */
+    /*We try to minimize the time between the two calls*/
+    current_timestamp=clock_get_time();
+    current_fraction=TIMER_8_AS_1_COUNTER_CURRENT;
+    /* copy the time also to the transmit time */
+    pkt->xmt.seconds = HTONL(current_timestamp + JAN_1970);
+    pkt->xmt.fraction = HTONL((uint32_t)current_fraction << 24);
 
     uip_udp_send(sizeof(struct ntp_packet));
 

@@ -4,12 +4,17 @@ TOPDIR = .
 SUBDIRS += control6
 SUBDIRS += core
 SUBDIRS += core/crypto
+SUBDIRS += core/host
 SUBDIRS += core/portio
 SUBDIRS += core/tty
+SUBDIRS += core/gui
+SUBDIRS += core/util
 SUBDIRS += core/vfs
 SUBDIRS += mcuf
 SUBDIRS += hardware/adc
 SUBDIRS += hardware/adc/kty
+SUBDIRS += hardware/adc/ads7822
+SUBDIRS += hardware/avr
 SUBDIRS += hardware/dac
 SUBDIRS += hardware/clock/dcf77
 SUBDIRS += hardware/camera
@@ -21,21 +26,30 @@ SUBDIRS += hardware/input/ps2
 SUBDIRS += hardware/input/buttons
 SUBDIRS += hardware/io_expander
 SUBDIRS += hardware/ir/rc5
+SUBDIRS += hardware/ir/irmp
 SUBDIRS += hardware/isdn
 SUBDIRS += hardware/lcd
 SUBDIRS += hardware/lcd/s1d15g10
 SUBDIRS += hardware/lcd/ST7626
+SUBDIRS += hardware/lcd/s1d13305
 SUBDIRS += hardware/onewire
 SUBDIRS += hardware/pwm
 SUBDIRS += hardware/sms
 SUBDIRS += hardware/radio/fs20
 SUBDIRS += hardware/radio/rfm12
+SUBDIRS += hardware/sht
 SUBDIRS += hardware/sram
 SUBDIRS += hardware/storage/dataflash
 SUBDIRS += hardware/storage/sd_reader
+SUBDIRS += hardware/zacwire
+SUBDIRS += hardware/ultrasonic
+SUBDIRS += hardware/hbridge
 SUBDIRS += protocols/artnet
 SUBDIRS += protocols/bootp
+SUBDIRS += protocols/dali
+SUBDIRS += protocols/dhcp 
 SUBDIRS += protocols/dmx
+SUBDIRS += protocols/fnordlicht
 SUBDIRS += protocols/mdns_sd
 SUBDIRS += protocols/modbus
 SUBDIRS += protocols/mysql
@@ -58,43 +72,47 @@ SUBDIRS += protocols/ecmd/via_udp
 SUBDIRS += protocols/ecmd/via_usart
 SUBDIRS += protocols/irc
 SUBDIRS += protocols/soap
+SUBDIRS += protocols/httplog
 SUBDIRS += protocols/twitter
 SUBDIRS += protocols/netstat
 SUBDIRS += protocols/to1
+SUBDIRS += protocols/serial_line_log
 SUBDIRS += protocols/msr1
 SUBDIRS += protocols/nmea
+SUBDIRS += protocols/udpIO
+SUBDIRS += protocols/udpstella
+SUBDIRS += protocols/udpcurtain
+SUBDIRS += protocols/cw
 SUBDIRS += services/clock
 SUBDIRS += services/cron
 SUBDIRS += services/dyndns
+SUBDIRS += services/dmx-storage
+SUBDIRS += services/dmx-effect
 SUBDIRS += services/echo
+SUBDIRS += services/freqcount
 SUBDIRS += services/pam
 SUBDIRS += services/httpd
 SUBDIRS += services/jabber
 SUBDIRS += services/ntp
 SUBDIRS += services/wol
+SUBDIRS += services/motd
+SUBDIRS += services/moodlight
 SUBDIRS += services/stella
+SUBDIRS += services/starburst
 SUBDIRS += services/tftp
 SUBDIRS += services/upnp
 SUBDIRS += services/appsample
 SUBDIRS += services/watchcat
+SUBDIRS += services/vnc
+SUBDIRS += services/watchasync
+SUBDIRS += services/curtain
+SUBDIRS += services/glcdmenu
+SUBDIRS += services/lome6
+SUBDIRS += services/projectors/sanyoZ700
 
 rootbuild=t
 
 export TOPDIR
-
-##############################################################################
-all: compile-$(TARGET)
-	@echo "=======The ethersex project========"
-	@echo "Compiled for: $(MCU) at $(FREQ)Hz"
-	@${TOPDIR}/scripts/size $(TARGET) $(MCU)
-	@echo "==================================="
-.PHONY: all
-.SILENT: all
-
-##############################################################################
-# generic fluff
-include $(TOPDIR)/scripts/defaults.mk
-#include $(TOPDIR)/scripts/rules.mk
 
 ifneq ($(no_deps),t)
 ifneq ($(MAKECMDGOALS),clean)
@@ -110,6 +128,59 @@ endif # MAKECMDGOALS!=mrproper
 endif # MAKECMDGOALS!=clean
 endif # no_deps!=t
 
+##############################################################################
+ifeq ($(ARCH_HOST),y)
+all: $(TARGET)
+else
+all: compile-$(TARGET)
+	@echo "=======The ethersex project========"
+	@echo "Compiled for: $(MCU) at $(FREQ)Hz"
+	@$(CONFIG_SHELL) ${TOPDIR}/scripts/size $(TARGET) $(MCU)
+	@echo "==================================="
+endif
+.PHONY: all
+.SILENT: all
+
+##############################################################################
+# logging to file make.log
+# calls make all and redirects stdout and stderr to make.log
+v:
+	(echo "===== logging make activity to file make.log =====";\
+	 echo "Build started on `date`";\
+	 ${MAKE} all 2>&1) | tee make.log
+
+##############################################################################
+# print information about binary size and flash usage
+size-info:
+	@echo "===== size info ====="
+	@$(CONFIG_SHELL) ${TOPDIR}/scripts/size $(TARGET) $(MCU)
+
+##############################################################################
+# target help displays a short overview over make options
+help:
+	@echo "Configuration targets:"
+	@echo "  menuconfig   - Update current config utilising a menu based program"
+	@echo "                 (default when .config does not exist)"
+	@echo ""
+	@echo "Cleaning targets:"
+	@echo "  clean        - Remove bin and dep files"
+	@echo "  fullclean    - Same as "clean", but also remove object files"
+	@echo "  mrproper     - Same as "fullclean", but also remove all config files"
+	@echo ""
+	@echo "Information targets:"
+	@echo "  show-config  - show enabled modules"
+	@echo "  size-info    - show size information of compiled binary"
+	@echo ""
+	@echo "Other generic targets:"
+	@echo "  all          - Build everything as specified in .config"
+	@echo "                 (default if .config exists)"
+	@echo "  v            - Same as "all" but with logging to make.log enabled"
+
+##############################################################################
+# generic fluff
+include $(TOPDIR)/scripts/defaults.mk
+#include $(TOPDIR)/scripts/rules.mk
+
 SRC += ethersex.c
 ${UIP_SUPPORT}_SRC += network.c
 
@@ -121,9 +192,16 @@ debug:
 	@echo y_ECMD_SRC: ${y_ECMD_SRC}
 	@echo y_SOAP_SRC: ${y_SOAP_SRC}
 
+${ECMD_PARSER_SUPPORT}_SRC += ${y_ECMD_SRC}
+${SOAP_SUPPORT}_SRC += ${y_SOAP_SRC}
+
 meta.m4: ${SRC} ${y_SRC} .config
 	@echo "Build meta files"
-	@sed -ne '/Ethersex META/{n;:loop p;n;/\*\//!bloop }' ${SRC} ${y_SRC} > $@
+	$(SED) -ne '/Ethersex META/{n;:loop p;n;/\*\//!bloop }' ${SRC} ${y_SRC} > $@.tmp
+	@echo "Copying to meta.m4"
+	@if [ ! -e $@ ]; then cp $@.tmp $@; fi
+	@if ! diff $@.tmp $@ >/dev/null; then cp $@.tmp $@; fi
+	@rm -f $@.tmp
 
 $(ECMD_PARSER_SUPPORT)_NP_SIMPLE_META_SRC = protocols/ecmd/ecmd_defs.m4 ${named_pin_simple_files}
 $(SOAP_SUPPORT)_NP_SIMPLE_META_SRC = protocols/ecmd/ecmd_defs.m4 ${named_pin_simple_files}
@@ -136,28 +214,31 @@ $(ECMD_PARSER_SUPPORT)_META_SRC += protocols/ecmd/ecmd_defs.m4 ${named_pin_simpl
 y_META_SRC += $(y_NP_SIMPLE_META_SRC)
 
 meta.c: $(y_META_SRC)
-	@m4 `scripts/m4-defines` $^ > $@
+	$(M4) `scripts/m4-defines` $^ > $@
 
 meta.h: scripts/meta_header_magic.m4 meta.m4
-	@m4 `scripts/m4-defines` $^ > $@
+	$(M4) `scripts/m4-defines` $^ > $@
 
 ##############################################################################
+
 
 compile-$(TARGET): $(TARGET).hex $(TARGET).bin
 .PHONY: compile-$(TARGET)
 .SILENT: compile-$(TARGET)
 
-${ECMD_PARSER_SUPPORT}_SRC += ${y_ECMD_SRC}
-${SOAP_SUPPORT}_SRC += ${y_SOAP_SRC}
-
 OBJECTS += $(patsubst %.c,%.o,${SRC} ${y_SRC} meta.c)
 OBJECTS += $(patsubst %.S,%.o,${ASRC} ${y_ASRC})
 
-# FIXME how can we omit specifying every file to be linked twice?
-# This is currently necessary because of interdependencies between
-# the libraries, which aren't denoted in these however.
 $(TARGET): $(OBJECTS)
-	$(CC) $(LDFLAGS) -o $@ $(OBJECTS)
+	$(CC) $(LDFLAGS) -o $@ $(OBJECTS) -lc -lm # Pixie Dust!!! (Bug in avr-binutils)
+
+SIZEFUNCARG ?= -e printf -e scanf -e divmod
+size-check: $(OBJECTS) ethersex
+	@for obj in $^; do \
+	    if avr-nm $$obj | grep -q $(SIZEFUNCARG); then \
+		echo -n "$$obj: "; avr-nm $$obj | grep $(SIZEFUNCARG) | cut -c12- | tr '\n' ','; echo ''; \
+	    fi; \
+	done
 
 ##############################################################################
 
@@ -181,7 +262,7 @@ endif
 ##############################################################################
 
 ifeq ($(VFS_INLINE_SUPPORT),y)
-INLINE_FILES := $(shell ls embed/* | sed '/\.tmp$$/d; /\.gz$$/d; s/\.cpp$$//; s/\.m4$$//; s/\.sh$$//;')
+INLINE_FILES := $(shell ls embed/* | $(SED) '/\.tmp$$/d; /\.gz$$/d; s/\.cpp$$//; s/\.m4$$//; s/\.sh$$//;')
 ifeq ($(DEBUG_INLINE_FILES),y)
 .PRECIOUS = $(INLINE_FILES)
 endif
@@ -190,15 +271,15 @@ INLINE_FILES :=
 endif
 
 embed/%: embed/%.cpp
-	@if ! avr-cpp -DF_CPU=$(FREQ) -I$(TOPDIR) $< 2> /dev/null > $@.tmp; \
+	@if ! avr-cpp -xc -DF_CPU=$(FREQ) -I$(TOPDIR) -include autoconf.h $< 2> /dev/null > $@.tmp; \
 		then $(RM) $@; echo "--> Don't include $@ ($<)"; \
-	else sed '/^$$/d; /^#[^#]/d' <$@.tmp > $@; \
+	else $(SED) '/^$$/d; /^#[^#]/d' <$@.tmp > $@; \
 	  echo "--> Include $@ ($<)"; fi
 	@$(RM) $@.tmp
 
 
 embed/%: embed/%.m4
-	@if ! m4 `scripts/m4-defines` $< > $@; \
+	@if ! $(M4) `scripts/m4-defines` $< > $@; \
 	  then $(RM) $@; echo "--> Don't include $@ ($<)";\
 		else echo "--> Include $@ ($<)";	fi
 
@@ -211,7 +292,7 @@ embed/%: embed/%.sh
 	$(OBJCOPY) -O binary -R .eeprom $< $@
 ifeq ($(VFS_INLINE_SUPPORT),y)
 	@$(MAKE) -C core/vfs vfs-concat TOPDIR=../.. no_deps=t
-	@core/vfs/do-embed $(INLINE_FILES)
+	$(CONFIG_SHELL) core/vfs/do-embed $(INLINE_FILES)
 endif
 
 ##############################################################################
@@ -227,10 +308,16 @@ endif
 
 
 ##############################################################################
-CONFIG_SHELL := $(shell if [ -x "$$BASH" ]; then echo $$BASH; \
+### Special case for MacOS X (darwin10.0) and FreeBSD
+CONFIG_SHELL := $(shell if [ x"$$OSTYPE" = x"darwin10.0" ] ; then echo /opt/local/bin/bash; \
+          elif [ x"$$OSTYPE" = x"FreeBSD" ]; then echo /usr/local/bin/bash; \
+          elif [ -x "$$BASH" ]; then echo $$BASH; \
           elif [ -x /bin/bash ]; then echo /bin/bash; \
           elif [ -x /usr/local/bin/bash ]; then echo /usr/local/bin/bash; \
           else echo sh; fi)
+### Special case for MacOS X (darwin10.0)
+### bash v3.2 in 10.6 does not work, use version 4.0 from macports
+### (see "Voraussetzungen" in wiki)
 
 menuconfig:
 	$(MAKE) -C scripts/lxdialog all
@@ -283,7 +370,7 @@ PINNING_FILES=pinning/internals/header.m4 \
 	$(wildcard pinning/internals/hackery_$(MCU).m4) \
 	$(wildcard pinning/hardware/$(HARDWARE).m4) pinning/internals/footer.m4
 pinning.c: $(PINNING_FILES) autoconf.h
-	@m4 -I$(TOPDIR)/pinning `scripts/m4-defines` $(PINNING_FILES) > $@
+	$(M4) -I$(TOPDIR)/pinning `scripts/m4-defines` $(PINNING_FILES) > $@
 
 
 ##############################################################################
@@ -295,7 +382,7 @@ show-config: autoconf.h
 	@echo
 	@echo "These modules are currently enabled: "
 	@echo "======================================"
-	@grep -e "^#define .*_SUPPORT" autoconf.h | sed -e "s/^#define / * /" -e "s/_SUPPORT.*//"
+	@$(SED) -e "/^#define \<.*_SUPPORT\>/!d;s/^#define / * /;s/_SUPPORT.*//" autoconf.h 
 
 .PHONY: show-config
 

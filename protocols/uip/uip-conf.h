@@ -137,7 +137,7 @@ typedef unsigned short uip_stats_t;
 #endif
 
 
-#ifdef ENC28J60_SUPPORT
+#if defined(ENC28J60_SUPPORT) || defined(TAP_SUPPORT)
 /* On stand-alone ethersex and on rfm12/zbus-bridge always use 14 byte LLH. */
 #  define __LLH_LEN  (14 + VLAN_LLH_EXTRA)
 
@@ -198,6 +198,9 @@ enum {
 #if defined(ENC28J60_SUPPORT)
   STACK_ENC,
 #endif
+#if defined(TAP_SUPPORT)
+  STACK_TAP,
+#endif
 
   /* STACK_LEN must be the last! */
   STACK_LEN
@@ -218,7 +221,7 @@ enum {
 
 #endif
 
-extern u16_t upper_layer_chksum(u8_t);
+u16_t upper_layer_chksum(u8_t);
 u8_t uip_ipaddr_prefixlencmp(uip_ip6addr_t _a, uip_ip6addr_t _b, u8_t prefix);
 
 #endif /* __UIP_CONF_H__ */

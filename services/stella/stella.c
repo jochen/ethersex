@@ -26,6 +26,12 @@
 #include "core/debug.h"
 #include "stella.h"
 #include "stella_fading_functions.h"
+#include "services/dmx-storage/dmx_storage.h"
+
+#define stella_vslow 0
+#define stella_slow 1
+#define stella_normal 2
+#define stella_fast 3
 
 uint8_t stella_brightness[STELLA_CHANNELS];
 uint8_t stella_fade[STELLA_CHANNELS];
@@ -35,13 +41,14 @@ uint8_t stella_fade_step = STELLA_FADE_STEP_INIT;
 volatile uint8_t stella_fade_counter = 0;
 
 volatile enum stella_update_sync stella_sync;
-uint8_t stella_portmask_neg[STELLA_PORT_COUNT];
+uint8_t stella_portmask[STELLA_PORT_COUNT];
 
 struct stella_timetable_struct timetable_1, timetable_2;
 struct stella_timetable_struct* int_table;
 struct stella_timetable_struct* cal_table;
-
-
+#ifdef DMX_STORAGE_SUPPORT
+uint8_t stella_dmx_conn_id;
+#endif
 void stella_sort(void);
 
 /* Initialize stella */
@@ -54,16 +61,16 @@ stella_init (void)
 	
 	stella_sync = NOTHING_NEW;
 
-	/* set stella port pins to output and save the negated port mask */
-	stella_portmask_neg[0] = (uint8_t)~(((1 << STELLA_PINS_PORT1) - 1) << STELLA_OFFSET_PORT1);
-	STELLA_DDR_PORT1 = ((1 << STELLA_PINS_PORT1) - 1) << STELLA_OFFSET_PORT1;
+	/* set stella port pins to output and save the port mask */
+	stella_portmask[0] = ((1 << STELLA_PINS_PORT1) - 1) << STELLA_OFFSET_PORT1;
+	STELLA_DDR_PORT1 |= stella_portmask[0];
 	cal_table->port[0].port = &STELLA_PORT1;
 	cal_table->port[0].mask = 0;
 	#ifdef STELLA_PINS_PORT2
-	stella_portmask_neg[1] = (uint8_t)~(((1 << STELLA_PINS_PORT2) - 1) << STELLA_OFFSET_PORT2);
-	STELLA_DDR_PORT2 = ((1 << STELLA_PINS_PORT2) - 1) << STELLA_OFFSET_PORT2;
-	cal_table->port[0].port = &STELLA_PORT2;
-	cal_table->port[1].mask = 0;
+		stella_portmask[1] = ((1 << STELLA_PINS_PORT2) - 1) << STELLA_OFFSET_PORT2;
+		STELLA_DDR_PORT2 |= stella_portmask[1];
+		cal_table->port[0].port = &STELLA_PORT2;
+		cal_table->port[1].mask = 0;
 	#endif
 
 	/* initialise the fade counter. Fading works like this:
@@ -73,7 +80,7 @@ stella_init (void)
 	*/
 	stella_fade_counter = stella_fade_step;
 
-	#if STELLA_START == stella_start_eeprom
+	#if !defined(TEENSY_SUPPORT) && STELLA_START == stella_start_eeprom
 	stella_loadFromEEROMFading();
 	#endif
 	#if STELLA_START == stella_start_all
@@ -84,19 +91,27 @@ stella_init (void)
 
 	/* we need at least 64 ticks for the compare interrupt,
 	* therefore choose a prescaler of at least 64. */
-	
-	#ifdef STELLA_HIGHFREQ
-	/* High frequency PWM Mode, 64 Prescaler */
-	_TCCR2_PRESCALE = _BV(CS22);
-	debug_printf("Stella freq: %u Hz\n", F_CPU/64/(256*2));
-	#else
-	/* Normal PWM Mode, 128 Prescaler */
-	_TCCR2_PRESCALE |= _BV(CS20) | _BV(CS22);
+	#if STELLA_FREQ == stella_vslow
+	STELLA_PRESCALER =  _BV(STELLA_CS0) |_BV(STELLA_CS1) | _BV(STELLA_CS2);
+	debug_printf("Stella freq: %u Hz\n", F_CPU/1024/(256*2));
+	#elif STELLA_FREQ == stella_slow
+	STELLA_PRESCALER =  _BV(STELLA_CS1) | _BV(STELLA_CS2);
+	debug_printf("Stella freq: %u Hz\n", F_CPU/256/(256*2));
+	#elif STELLA_FREQ == stella_normal
+	STELLA_PRESCALER =  _BV(STELLA_CS0) | _BV(STELLA_CS2);
 	debug_printf("Stella freq: %u Hz\n", F_CPU/128/(256*2));
+	#elif STELLA_FREQ == stella_fast
+	STELLA_PRESCALER =  _BV(STELLA_CS2);
+	debug_printf("Stella freq: %u Hz\n", F_CPU/64/(256*2));
 	#endif
 
+
 	/* Interrupt on overflow and CompareMatch */
-	_TIMSK_TIMER2 |= _BV(TOIE2) | _BV(_OUTPUT_COMPARE_IE2);
+	STELLA_TIMSK |= _BV(STELLA_TOIE) | _BV(STELLA_COMPARE_IE);
+	/*Setup DMX-Storage Connection*/
+	#ifdef DMX_STORAGE_SUPPORT
+        stella_dmx_conn_id=dmx_storage_connect(STELLA_UNIVERSE);
+	#endif
 }
 
 uint8_t
@@ -108,23 +123,20 @@ stella_output_channels(void* target)
 	return sizeof(struct stella_output_channels_struct);
 }
 
-void
-stella_dmx(uint8_t* dmx_data, uint8_t len)
-{
-	// length
-	if (len<2) return; // no real data, abort
-	--len; // ignore first byte (defines fade function)
-	if (STELLA_CHANNELS < len) len = STELLA_CHANNELS;
-
-	for (uint8_t i=0;i<len;++i)
-		stella_setValue(dmx_data[0], i, dmx_data[i+1]);
-}
-
 /* Process recurring actions for stella */
 void
 stella_process (void)
 {
-
+	#ifdef DMX_STORAGE_SUPPORT
+        if(get_dmx_universe_state(STELLA_UNIVERSE,stella_dmx_conn_id) == DMX_NEWVALUES)
+	{
+		uint8_t mode=get_dmx_channel_slot(STELLA_UNIVERSE,STELLA_UNIVERSE_OFFSET,stella_dmx_conn_id);
+		for(uint8_t i=0;i<STELLA_CHANNELS;i++)
+		{
+			stella_setValue(mode, i, get_dmx_channel_slot(STELLA_UNIVERSE,STELLA_UNIVERSE_OFFSET+i+1,stella_dmx_conn_id));
+		}
+	}
+	#endif
 	/* the main loop is too fast, slow down */
 	if (stella_fade_counter == 0)
 	{
@@ -155,6 +167,9 @@ stella_process (void)
 void
 stella_setValue(const enum stella_set_function func, const uint8_t channel, const uint8_t value)
 {
+	#ifdef DEBUG_STELLA
+		debug_printf("STELLA: channel: %d of %d\n", channel+1, STELLA_CHANNELS);
+	#endif
 	if (channel >= STELLA_CHANNELS) return;
 
 	switch (func)
@@ -163,19 +178,36 @@ stella_setValue(const enum stella_set_function func, const uint8_t channel, cons
 			stella_brightness[channel] = value;
 			stella_fade[channel] = value;
 			stella_sync = UPDATE_VALUES;
+			#ifdef DEBUG_STELLA
+				debug_printf("STELLA: set immediately  value: %d\n", value);
+			#endif
 			break;
 		case STELLA_SET_FADE:
 			stella_fade[channel] = value;
+			#ifdef DEBUG_STELLA
+				debug_printf("STELLA: set fadeing value: %d\n", value);
+			#endif
 			break;
 		case STELLA_SET_FLASHY:
 			stella_brightness[channel] = value;
 			stella_fade[channel] = 0;
 			stella_sync = UPDATE_VALUES;
+			#ifdef DEBUG_STELLA
+				debug_printf("STELLA: set flashy value: %d\n", value);
+			#endif
 			break;
 		case STELLA_SET_IMMEDIATELY_RELATIVE:
 			stella_brightness[channel] += (int8_t)value;
 			stella_fade[channel] += (int8_t)value;
 			stella_sync = UPDATE_VALUES;
+			#ifdef DEBUG_STELLA
+				debug_printf("STELLA: set imidiatley relative value: %d\n", value);
+			#endif
+			break;
+		default:
+			#ifdef DEBUG_STELLA
+				debug_printf("STELLA: What? you set to %d\n", func);
+			#endif
 			break;
 	}
 }
@@ -196,31 +228,31 @@ stella_getValue(const uint8_t channel)
 	return stella_brightness[channel];
 }
 
+#ifndef TEENSY_SUPPORT
 void
 stella_loadFromEEROMFading()
 {
-	#ifndef TEENSY_SUPPORT
 	eeprom_restore(stella_channel_values, stella_fade, STELLA_CHANNELS);
-	#endif
 }
+#endif
 
+#ifndef TEENSY_SUPPORT
 void
 stella_loadFromEEROM()
 {
-	#ifndef TEENSY_SUPPORT
 	eeprom_restore(stella_channel_values, stella_fade, STELLA_CHANNELS);
 	memcpy(stella_brightness, stella_fade, STELLA_CHANNELS);
 	stella_sync = UPDATE_VALUES;
-	#endif
 }
+#endif
 
+#ifndef TEENSY_SUPPORT
 void
 stella_storeToEEROM()
 {
-	#ifndef TEENSY_SUPPORT
 	eeprom_save(stella_channel_values, stella_brightness, STELLA_CHANNELS);
-	#endif
 }
+#endif
 
 /* How to use:
  * Do not call this directly, but use "stella_sync = UPDATE_VALUES" instead.
@@ -250,17 +282,17 @@ stella_sort()
 	struct stella_timetable_entry* current, *last;
 	uint8_t i;
 
+	cal_table->head = 0;
 	cal_table->port[0].mask = 0;
 	cal_table->port[0].port = &STELLA_PORT1;
 	#ifdef STELLA_PINS_PORT2
-	cal_table->port[1].mask = 0;
-	cal_table->port[1].port = &STELLA_PORT2;
+		cal_table->port[1].mask = 0;
+		cal_table->port[1].port = &STELLA_PORT2;
 	#endif
-	cal_table->head = 0;
 
 	for (i=0;i<STELLA_CHANNELS;++i)
 	{
-		/* set current item */
+		/* set data of channel i */
 		cal_table->channel[i].port.mask = _BV(i+STELLA_OFFSET_PORT1);
 		cal_table->channel[i].port.port = &STELLA_PORT1;
 		#ifdef STELLA_PINS_PORT2
@@ -272,11 +304,12 @@ stella_sort()
 		cal_table->channel[i].value = 255 - stella_brightness[i];
 		cal_table->channel[i].next = 0;
 
-		/* Sepcial cases: 0% brightness */
+		/* Special case: 0% brightness (Don't include this channel!) */
 		if (stella_brightness[i] == 0) continue;
 
 		//cal_table->portmask |= _BV(i+STELLA_OFFSET);
 
+		/* Special case: 100% brightness (Merge pwm cycle start masks! Don't include this channel!) */
 		if (stella_brightness[i] == 255)
 		{
 			#ifdef STELLA_PINS_PORT2
@@ -285,7 +318,7 @@ stella_sort()
 			else
 				cal_table->port[0].mask |= _BV(i+STELLA_OFFSET_PORT1);
 			#else
-			cal_table->port[0].mask |= _BV(i+STELLA_OFFSET_PORT1);
+				cal_table->port[0].mask |= _BV(i+STELLA_OFFSET_PORT1);
 			#endif
 			continue;
 		}
@@ -301,7 +334,7 @@ stella_sort()
 		while (current)
 		{
 			// same value as current item: do not add to linked list
-			// but just update the portmask (DO THIS ONLY IF PORTS DIFFER)
+			// but just update the portmask (DO THIS ONLY IF BOTH CHANNELS OPERATE ON THE SAME PORT)
 			if (current->value == cal_table->channel[i].value && current->port.port == cal_table->channel[i].port.port)
 			{
 				#ifdef STELLA_PINS_PORT2
@@ -328,7 +361,7 @@ stella_sort()
 				last->next = &(cal_table->channel[i]);
 				break;
 			}
-			// reached the end of the linked list: just add our new entry
+			// reached the end of the linked list: just append our new entry
 			else if (!current->next)
 			{
 				current->next = &(cal_table->channel[i]);
@@ -350,10 +383,13 @@ stella_sort()
 	while (current)
 	{
 		i++;
-		debug_printf("%u %s\n", current->value, debug_binary(current->portmask));
+		//debug_printf("%u %s\n", current->value, debug_binary(current->portmask));
 		current = current->next;
 	}
-	debug_printf("%s %u\n", debug_binary(stella_portmask_neg), stella_portmask_neg);
+	debug_printf("Mask1: %s %u\n", debug_binary(stella_portmask[0]), stella_portmask[0]);
+	#ifdef STELLA_PINS_PORT2
+	debug_printf("Mask2: %s %u\n", debug_binary(stella_portmask[1]), stella_portmask[1]);
+	#endif
 	#endif
 
 	/* Allow the interrupt to actually apply the calculated values */

@@ -44,7 +44,7 @@
 void rfm12_init(void);
 
 // transfer 1 word to/from module
-unsigned short rfm12_trans(unsigned short wert);
+uint16_t rfm12_trans(uint16_t wert);
 
 
 #define RxBW400		1
@@ -68,6 +68,7 @@ unsigned short rfm12_trans(unsigned short wert);
 
 /* macro for calculating frequency value out of frequency in kHz */
 #define RFM12FREQ(freq)	(((freq<800000?freq*2:freq)-860000)/5)	
+#define RFM12BAND(freq)	(freq<800000?0x80D7:0x80E7)
 
 // set receiver settings
 void rfm12_setbandwidth(uint8_t bandwidth, uint8_t gain, uint8_t drssi);
@@ -108,11 +109,15 @@ rfm12_status_t rfm12_status;
 
 #define rfm12_tx_active()  (rfm12_status >= RFM12_TX)
 
-
-#define rfm12_int_enable()			\
-  _EIMSK |= _BV(RFM12_INT_PIN);
-#define rfm12_int_disable()			\
-  _EIMSK &= ~_BV(RFM12_INT_PIN);
+#ifdef RFM12_USE_POLL
+	#define rfm12_int_enable()  do { } while(0)
+	#define rfm12_int_disable() do { } while(0)
+#elif !defined(HAVE_RFM12_PCINT)
+	#define rfm12_int_enable()			\
+	  _EIMSK |= _BV(RFM12_INT_PIN);
+	#define rfm12_int_disable()			\
+	  _EIMSK &= ~_BV(RFM12_INT_PIN);
+#endif  /* not HAVE_RFM12_PCINT */
 
 
 #define RFM12_BUFFER_LEN    (UIP_CONF_BUFFER_SIZE - RFM12_BRIDGE_OFFSET)
@@ -195,5 +200,8 @@ extern uint8_t rfm12_drssi;
 /* return the current rfm12 status word */
 uint16_t rfm12_get_status (void);
 
+#if !defined(RFM12_USE_POLL) || !defined(RFM12_IP_SUPPORT)
+#define rfm12_int_process()  do { } while(0)
+#endif
 
 #endif /* _RFM12_H */

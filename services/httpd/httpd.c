@@ -35,7 +35,7 @@
 
 #ifdef DEBUG_HTTPD
 # include "core/debug.h"
-# define printf        debug_printf
+# define printf(a...)  debug_printf(a)
 #else
 # define printf(...)   ((void)0)
 #endif
@@ -213,6 +213,13 @@ after_auth:
 	strcpy_P(filename, PSTR(HTTPD_INDEX));
 #endif
 
+
+#ifdef HTTP_FAVICON_SUPPORT
+    if (strcmp_P(filename, PSTR("favicon.ico")) == 0) strcpy_P(filename, PSTR("If.ico"));
+#endif
+
+
+
 #ifdef ECMD_PARSER_SUPPORT
     uint8_t offset = strlen_P(PSTR(ECMD_INDEX "?"));
     if (strncmp_P (filename, PSTR(ECMD_INDEX "?"), offset) == 0) {
@@ -223,7 +230,13 @@ after_auth:
 
 #ifdef VFS_SUPPORT
     /* Keep content-type identifing char. */
-    STATE->u.vfs.content_type = *filename;
+    /* filename instead starts after last directory slash. */
+    char *slash = strrchr(filename, '/');
+    if(slash != NULL) {
+	STATE->u.vfs.content_type = *(char*)(slash + 1);
+    } else {
+	STATE->u.vfs.content_type = *filename;
+    }
 
     STATE->u.vfs.fd = vfs_open (filename);
     if (STATE->u.vfs.fd) {

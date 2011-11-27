@@ -1638,6 +1638,7 @@ STACK_PROTOTYPES(rfm12_stack)
 STACK_PROTOTYPES(usb_stack)
 STACK_PROTOTYPES(zbus_stack)
 STACK_PROTOTYPES(openvpn_stack)
+STACK_PROTOTYPES(tap_stack)
 #endif
 
 #ifdef UIP_SUPPORT
@@ -1653,7 +1654,7 @@ extern volatile uint8_t _uip_buf_lock;
 static inline uint8_t uip_buf_lock (void)
 {
   uint8_t result = 0;
-#ifndef TEENSY_SUPPORT
+#if !defined(TEENSY_SUPPORT) && (ARCH != ARCH_HOST)
   uint8_t sreg = SREG; cli();
   if (_uip_buf_lock)
     result = 1;
@@ -1684,6 +1685,7 @@ static inline uint8_t uip_buf_lock (void)
   } while(0)
 
 #endif  /* UIP_SUPPORT */
+
 
 #endif /* __UIP_H__ */
 

@@ -1,7 +1,17 @@
-dep_bool_menu "StellaLight: Multichannel pwm" STELLA_SUPPORT
-	dep_bool "Higher frequency" STELLA_HIGHFREQ
+dep_bool_menu "StellaLight: Multichannel pwm" STELLA_SUPPORT $ARCH_AVR
+	if [ "$DMX_STORAGE_SUPPORT" = "y" ]; then
+		int "Stella DMX Universe" STELLA_UNIVERSE 1
+		int "Offset in Universe" STELLA_UNIVERSE_OFFSET 0
+	fi
+	choice 'Stella Fequency'			\
+	    "Very_Slow stella_vslow	\
+	    Slow stella_slow	\
+	    Normal stella_normal	\
+	    Fast stella_fast"	\
+	    'Normal' STELLA_FREQ
+	bool "Low Interrupt Priority" STELLA_LOW_PRIORITY
 	comment  '----- Initial -----'
-	if [ "$MOODLIGHT" = "y" ]; then
+	if [ "$MOODLIGHT_SUPPORT" = "y" ]; then
 		choice 'Channels'			\
 		"0% stella_start_zero	\
 		100% stella_start_all	\

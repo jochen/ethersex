@@ -1,5 +1,6 @@
 /*
  *
+ * Copyright (c) 2009 by Stefan Riepenhausen <rhn@gmx.net>
  * Copyright (c) 2008 by Christian Dietrich <stettberger@dokucode.de>
  * Copyright (c) 2008 by Stefan Siegl <stesie@brokenpipe.de>
  *
@@ -26,9 +27,11 @@
 #include <avr/pgmspace.h>
 
 #include "config.h"
+#include "usb_hid_keyboard.h"
+#include "usb_hid_mouse.h"
+#include "usb_net.h"
 #include "usbdrv/usbdrv.h"
 #include "requests.h"
-#include "usb_net.h"
 
 #ifdef USB_CFG_PULLUP_IOPORTNAME
 #undef usbDeviceConnect
@@ -61,7 +64,13 @@ usbFunctionSetup(uchar data[8])
 #ifdef USB_NET_SUPPORT
   if (rq->bRequest == USB_REQUEST_NET_SEND
       || rq->bRequest == USB_REQUEST_NET_RECV)
-    return (usbMsgLen_t) usb_net_setup(data);
+    return usb_net_setup(data);
+#endif
+#ifdef USB_KEYBOARD_SUPPORT
+  return hid_usbFunctionSetup(data);
+#endif
+#ifdef USB_MOUSE_SUPPORT
+  return hid_usbFunctionSetup(data);
 #endif
 
   return 0;   /* default for not implemented requests: return no data back to host */
@@ -116,13 +125,25 @@ usb_periodic(void)
 #ifdef USB_NET_SUPPORT
   usb_net_periodic();
 #endif
+#ifdef USB_KEYBOARD_SUPPORT
+  usb_keyboard_periodic();
+#endif
+#ifdef USB_MOUSE_SUPPORT
+  usb_mouse_periodic();
+#endif
 }
 
 void
 usb_init(void)
 {
+#ifdef AUTOSET_USB_ENABLE_PIN_SUPPORT
+  PIN_SET(USB_ENABLE);
+#endif /* AUTOSET_USB_ENABLE_PIN_SUPPORT */
 #ifdef USB_NET_SUPPORT
   usb_net_init();
+#endif
+
+#ifdef USB_KEYBOARD_SUPPORT
 #endif
 
 #define USB_DDR_CONFIG(pin)  DDR_CHAR( pin ## _PORT) &= ~(_BV((pin ## _PIN)) | _BV(USB_INT_PIN))

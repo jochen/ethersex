@@ -23,10 +23,10 @@
 #define _HTTPD_H
 
 #include <stdint.h>
+#include <string.h>
+#include <avr/pgmspace.h>
 
-#ifdef AVR
 #include "protocols/uip/uip.h"
-#endif
 
 /* constants */
 
@@ -50,23 +50,28 @@ void httpd_handle_soap (void);
 void httpd_handle_ecmd_setup (char *encoded_cmd);
 void httpd_handle_ecmd (void);
 
-const PGM_P httpd_mimetype_detect (const uint8_t *);
+PGM_P httpd_mimetype_detect (const uint8_t *);
 
 /* headers */
-extern char httpd_header_200[];
-extern char httpd_header_ct_css[];
-extern char httpd_header_ct_html[];
-extern char httpd_header_ct_xhtml[];
-extern char httpd_header_ecmd[];
-extern char httpd_header_400[];
-extern char httpd_header_gzip[];
-extern char httpd_header_401[];
-extern char httpd_body_401[];
-extern char httpd_body_400[];
-extern char httpd_header_404[];
-extern char httpd_body_404[];
-extern char httpd_header_length[];
-extern char httpd_header_end[];
+extern const char httpd_header_200[];
+extern const char httpd_header_ct_css[];
+extern const char httpd_header_ct_html[];
+extern const char httpd_header_ct_xhtml[];
+
+#ifdef HTTP_FAVICON_SUPPORT
+extern const char httpd_header_ct_xicon[];
+#endif
+
+extern const char httpd_header_ecmd[];
+extern const char httpd_header_400[];
+extern const char httpd_header_gzip[];
+extern const char httpd_header_401[];
+extern const char httpd_body_401[];
+extern const char httpd_body_400[];
+extern const char httpd_header_404[];
+extern const char httpd_body_404[];
+extern const char httpd_header_length[];
+extern const char httpd_header_end[];
 
 #include <stdio.h>
 #include <avr/pgmspace.h>

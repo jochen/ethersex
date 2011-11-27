@@ -96,12 +96,13 @@ int16_t parse_cmd_netmask(char *cmd, char *output, uint16_t len)
 
 int16_t parse_cmd_gw(char *cmd, char *output, uint16_t len)
 {
+    uip_ipaddr_t gwaddr;
+
     while (*cmd == ' ')
 	cmd++;
 
 #ifndef DISABLE_IPCONF_SUPPORT
 #if (!UIP_CONF_IPV6 || IPV6_STATIC_SUPPORT) && !defined(BOOTP_SUPPORT)
-    uip_ipaddr_t gwaddr;
 
     if (*cmd != '\0') {
         /* try to parse ip */
@@ -117,11 +118,23 @@ int16_t parse_cmd_gw(char *cmd, char *output, uint16_t len)
 #endif /* !UIP_CONF_IPV6 and !BOOTP_SUPPORT */
 #endif /* DISABLE_IPCONF_SUPPORT */
     {
-    uip_ipaddr_t gwaddr;
         uip_getdraddr(&gwaddr);
 
         return ECMD_FINAL(print_ipaddr(&gwaddr, output, len));
     }
 }
 
+/*
+  -- Ethersex META --
+  block(Network configuration)
+  ecmd_ifndef(TEENSY_SUPPORT)
+    ecmd_ifdef(UIP_SUPPORT)
+      ecmd_ifndef(IPV6_SUPPORT)
+	ecmd_feature(netmask, "netmask",[IP],Display/Set the network mask.)
+      ecmd_endif()
 
+      ecmd_feature(ip, "ip",[IP],Display/Set the IP address.)
+      ecmd_feature(gw, "gw",[IP],Display/Set the address of the default router.)
+    ecmd_endif()
+  ecmd_endif()
+*/

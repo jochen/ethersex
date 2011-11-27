@@ -8,74 +8,49 @@ dnl
 dnl  Lines starting with `dnl' are comments.
 dnl
 
-dnl block(Network configuration) dnl ==========================
-ecmd_ifndef(TEENSY_SUPPORT)
-  ecmd_ifdef(UIP_SUPPORT)
-    ecmd_ifndef(IPV6_SUPPORT)
-      ecmd_feature(ip, "ip",[IP],Display/Set the IP address.)
-      ecmd_feature(netmask, "netmask",[IP],Display/Set the network mask.)
-      ecmd_feature(gw, "gw",[IP],Display/Set the address of the default router.)
-    ecmd_endif()
-
-    ecmd_ifdef(IPV6_STATIC_SUPPORT)
-      ecmd_feature(ip, "ip")
-      ecmd_feature(gw, "gw")
-    ecmd_endif()
-  ecmd_endif()
-ecmd_endif()
-
-block(Resetting the controller) dnl ==========================
-ecmd_ifndef(TEENSY_SUPPORT)
-  ecmd_ifndef(DISABLE_REBOOT_SUPPORT)
-    ecmd_feature(reset, "reset",,Reset the Ethersex.)
-    ecmd_feature(wdreset, "wdreset",,Go into endless loop to trigger a watchdog timeout.)
-  ecmd_endif()
-ecmd_endif()
-
-ecmd_ifndef(DISABLE_REBOOT_SUPPORT)
-  ecmd_feature(bootloader, "bootloader",,Call the bootloader.)
-ecmd_endif()
-
-block([[RFM12_ASK]]) dnl ==========================
-ecmd_ifdef(RFM12_ASK_SENDER_SUPPORT)
-  ecmd_ifdef(RFM12_ASK_TEVION_SUPPORT)
-  ecmd_feature(rfm12_ask_tevion_send, "rfm12 tevion", , housecode command delay cnt)
-  ecmd_endif()
-  ecmd_ifdef(RFM12_ASK_2272_SUPPORT)
-    ecmd_feature(rfm12_ask_2272_send, "rfm12 2272", , housecodeCommand delay cnt)
-  ecmd_endif()
-ecmd_endif()
-ecmd_ifdef(RFM12_ASK_EXTERNAL_FILTER_SUPPORT)
-  ecmd_feature(rfm12_ask_external_filter, "rfm12 external filter",[1], Enable ext. filter pin if argument is present (disable otherwise))
-ecmd_endif()
-ecmd_ifdef(RFM12_ASK_SENSING_SUPPORT)
-  ecmd_feature(rfm12_ask_sense, "rfm12 ask sense",, Trigger (Tevion) ASK sensing.  Enable ext. filter pin before!)
-ecmd_endif()
-
-block([[Sound]]/Melody support) dnl ==========================
-ecmd_ifdef(PWM_MELODY_SUPPORT)
-  ecmd_feature(pwm_melody_play, "pwm melody", , Play melody)
-ecmd_endif
-
-ecmd_ifdef(PWM_WAV_SUPPORT)
-  ecmd_feature(pwm_wav_play, "pwm wav", , Play wav)
-  ecmd_feature(pwm_wav_stop, "pwm stop", , Stop wav)
-ecmd_endif
-
 block([[I2C]] (TWI)) dnl ==========================
 ecmd_ifdef(I2C_DETECT_SUPPORT)
   ecmd_feature(i2c_detect, "i2c detect",,list detected I2C Chips)
 ecmd_endif
-
+ecmd_ifdef(I2C_GENERIC_SUPPORT)
+  ecmd_feature(i2c_read_byte, "i2c rbb",ADDR,read byte from I2C chip)
+  ecmd_feature(i2c_read_byte_data, "i2c rbd",CHIPADDR REGADDR,read byte from register address at I2C chip)
+  ecmd_feature(i2c_read_word_data, "i2c rwd",CHIPADDR REGADDR,read word from register address at I2C chip)
+  ecmd_feature(i2c_write_byte, "i2c wbb",ADDR HEXVALUE,write byte to I2C chip)
+  ecmd_feature(i2c_write_byte_data, "i2c wbd",CHIPADDR REGADDR HEXVALUE,write byte to register address on I2C chip)
+  ecmd_feature(i2c_write_word_data, "i2c wwd",CHIPADDR REGADDR HEXVALUE,write word to register address on I2C chip)
+ecmd_endif
 ecmd_ifdef(I2C_LM75_SUPPORT)
   ecmd_feature(i2c_lm75, "lm75",ADDR, Get temperature)
+ecmd_endif
+ecmd_ifdef(I2C_DS1631_SUPPORT)
+  ecmd_feature(i2c_ds1631_read_temperature, "ds1631 temp",ADDR, Read last converted temperature)
+  ecmd_feature(i2c_ds1631_set_power_state, "ds1631 convert",ADDR VALUE, Initiate temperature conversions (0: stop, 1: convert))
+ecmd_endif
+ecmd_ifdef(I2C_TSL2550_SUPPORT)
+  ecmd_feature(i2c_tsl2550_show_lux_level, "tsl2550 lux",, Show light level by reading adc registers and computing level)
+  ecmd_feature(i2c_tsl2550_set_power_state, "tsl2550 power", VALUE, Set the TSL2550s power state (0: down, 1:up))
+  ecmd_feature(i2c_tsl2550_set_operating_mode, "tsl2550 mode", VALUE, Set the TSL2550s operating mode (0: standard range, 1: extended range))
 ecmd_endif
 ecmd_ifdef(I2C_PCA9531_SUPPORT)
   ecmd_feature(i2c_pca9531, "pca9531",ADDR PERIODPWM1 DUTYPWM1 PERIODPWM2 DUTYPWM2 LED0..3 LED4..7, set PWM1 and PWM2 and LED states)
 ecmd_endif
+ecmd_ifdef(I2C_PCA9685_SUPPORT)
+  ecmd_feature(i2c_pca9685_set_led, "pca9685s",ADDR, LED, ON, OFF )
+  ecmd_feature(i2c_pca9685_set_mode, "pca9685m",ADDR, OUTDRV, IVRT, PRESCALE )
+ecmd_endif
 ecmd_ifdef(I2C_PCF8574X_SUPPORT)
   ecmd_feature(i2c_pcf8574x_read, "pcf8574x read",ADDR CHIP, Get bits)
   ecmd_feature(i2c_pcf8574x_set, "pcf8574x set",ADDR CHIP HEXVALUE, Set bits)
+ecmd_endif
+ecmd_ifdef(I2C_MAX7311_SUPPORT)
+  ecmd_feature(i2c_max7311_setDDRw, "max7311 setDDRw", ADDR VALUE, Set Direction-Register DDR (VALUE as hex))
+  ecmd_feature(i2c_max7311_setOUTw, "max7311 setOUTw", ADDR VALUE, Set Output-Register OUT (VALUE as hex))
+  ecmd_feature(i2c_max7311_getDDRw, "max7311 getDDRw", ADDR, Get Direction-Register DDR)
+  ecmd_feature(i2c_max7311_getOUTw, "max7311 getOUTw", ADDR, Get Output-Register OUT)
+  ecmd_feature(i2c_max7311_getINw, "max7311 getINw", ADDR, Get Input-Register IN)
+  ecmd_feature(i2c_max7311_set, "max7311 set", ADDR BIT VALUE, Set Output-BIT to VALUE (bool))
+  ecmd_feature(i2c_max7311_pulse, "max7311 pulse", ADDR BIT TIME, Toggle Output-BIT for TIME (in ms))
 ecmd_endif
 
 block([[Blinkenlights_MCUF|MCUF]]) dnl ============================
@@ -95,11 +70,14 @@ ecmd_endif
 block([[FS20]]) dnl ==========================
 ecmd_ifdef(FS20_SUPPORT)
   ecmd_ifdef(FS20_SEND_SUPPORT)
-    ecmd_feature(fs20_send, "fs20 send",HOUSECODE ADDR CMD, Send FS20 command. See [[FS20]] for details.)
+    ecmd_feature(fs20_send, "fs20 send",HOUSECODE ADDR CMD [CMD2], Send FS20 command. See [[FS20]] for details.)
+  ecmd_endif()
+  ecmd_ifdef(FHT_SEND_SUPPORT)
+    ecmd_feature(fht_send, "fht send",HOUSECODE ADDR CMD [CMD2], Send FHT command. See [[FS20]] for details.)
   ecmd_endif()
 
   ecmd_ifdef(FS20_RECEIVE_SUPPORT)
-    ecmd_feature(fs20_receive, "fs20 receive",, Receive FS20 sequence and display it.)
+    ecmd_feature(fs20_receive, "fs20 receive",, Receive FS20/FHT sequence and display it.)
   ecmd_endif()
 
   ecmd_ifdef(FS20_RECEIVE_WS300_SUPPORT)
@@ -107,20 +85,15 @@ ecmd_ifdef(FS20_SUPPORT)
   ecmd_endif()
 ecmd_endif()
 
-
-
-
 block(Miscelleanous) dnl ============================
 dnl   Put stuff that doesn't fit elsewhere here, i.e. this is a good place
 dnl   for commands that don't fit in any category and would thus require to add
 dnl   a category just for one specific command (which we don't want)
 
 ecmd_ifndef(TEENSY_SUPPORT)
-  ecmd_feature(d, "d ", ADDR, Dump the memory at ADDR (16 bytes).)
   ecmd_feature(help, "help",, List which commands are available.)
 
   ecmd_feature(version, "version",,Display the version number.)
-  ecmd_feature(fuse, "fuse",,Display the fuse settings.)
 
 dnl  ecmd_ifdef(USART_SUPPORT)
 dnl    ecmd_feature(usart_baud, "usart baud", BAUD, Set the USART baudrate to BAUD.)

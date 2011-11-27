@@ -22,6 +22,7 @@
 #ifndef TTY_H
 #define TTY_H
 
+#include <inttypes.h>
 #include "config.h"
 #define LINES	TTY_LINES
 #define COLS	TTY_COLS
@@ -128,6 +129,9 @@ void wscroll (WINDOW *, uint8_t);
 #endif
 #ifdef TTY_LL_S1D15G10
 #include "core/tty/tty-s1d15g10.h"
+#endif
+#ifdef TTY_LL_S1D13305
+#include "core/tty/tty-s1d13305.h"
 #endif
 
 #ifdef TTY_LL_VT100_TELNET

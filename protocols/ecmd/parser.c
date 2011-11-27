@@ -28,6 +28,7 @@
 
 #include "config.h"
 #include "core/debug.h"
+#include "core/heartbeat.h"
 #include "protocols/uip/uip.h"
 #include "core/eeprom.h"
 #include "control6/control6.h"
@@ -35,6 +36,7 @@
 #include "protocols/ecmd/parser.h"
 
 #include "protocols/ecmd/ecmd-base.h"
+#include "protocols/ecmd/via_tcp/ecmd_state.h"
 
 
 #define xstr(s) str(s)
@@ -46,6 +48,19 @@ int16_t ecmd_parse_command(char *cmd, char *output, uint16_t len)
 #ifdef DEBUG_ECMD
     debug_printf("called ecmd_parse_command %s\n", cmd);
 #endif
+
+#ifdef ECMD_REMOVE_BACKSPACE_SUPPORT
+	uint8_t i = 0;
+	while (cmd[i] != '\0' && i < ECMD_OUTPUTBUF_LENGTH) { // search until end of string
+  		if (cmd[i] =='\b') { // check cmd for backspaces
+    		uint16_t cmdlen = strlen(cmd+i);
+    		memmove(cmd + i - 1, cmd + i + 1, cmdlen); // we found a backspace, so we move all chars backwards
+    		i--;  // and decrement char counter
+  		} else {
+    		i++; // goto char
+  		}
+	}
+#endif /* ECMD_REMOVE_BACKSPACE_SUPPORT */
 
 #ifdef ALIASCMD_SUPPORT
     if (cmd[0] == '$') { // alias command names start with $
@@ -63,7 +78,7 @@ int16_t ecmd_parse_command(char *cmd, char *output, uint16_t len)
 #endif
 	}
     }
-#endif
+#endif /* ALIASCMD_SUPPORT */
 
     if (strlen(cmd) < 2) {
 #ifdef DEBUG_ECMD
@@ -111,6 +126,8 @@ int16_t ecmd_parse_command(char *cmd, char *output, uint16_t len)
     debug_printf("rest cmd: \"%s\"\n", cmd);
 #endif
 
+    ACTIVITY_LED_ECMD;
+
     if (func != NULL)
         ret = func(cmd, output, len);
 
@@ -129,22 +146,10 @@ int16_t ecmd_parse_command(char *cmd, char *output, uint16_t len)
     return ret;
 }
 
-#ifndef DISABLE_REBOOT_SUPPORT
-int16_t parse_cmd_bootloader(char *cmd, char *output, uint16_t len)
-{
-    (void) cmd;
-    (void) output;
-    (void) len;
-
-    status.request_bootloader = 1;
-#   ifdef UIP_SUPPORT
-    uip_close();
-#   endif
-    return ECMD_FINAL_OK;
-}
-#endif
-
 #ifdef FREE_SUPPORT
+
+extern char *__brkval;
+extern unsigned char __heap_start;
 
 int16_t parse_cmd_free(char *cmd, char *output, uint16_t len)
 {
@@ -157,8 +162,6 @@ int16_t parse_cmd_free(char *cmd, char *output, uint16_t len)
 	Size of network packet frames is stored in NET_MAX_FRAME_LENGTH
 	*/
 
-	extern char *__brkval;
-	extern unsigned char __heap_start;
 	size_t f = (size_t)(__brkval ? (size_t)__brkval : (size_t)&__heap_start);
 	size_t allram = RAMEND;
 
@@ -180,65 +183,6 @@ int16_t parse_cmd_version(char *cmd, char *output, uint16_t len)
     (void) cmd;
 
     return ECMD_FINAL(snprintf_P(output, len, PSTR("%s"), VERSION_STRING));
-}
-
-int16_t parse_cmd_fuse(char *cmd, char *output, uint16_t len)
-{
-    (void) cmd;
-#ifdef _SPMCR
-    _SPMCR = 1<<BLBSET | 1<<SPMEN;
-    uint8_t lo = pgm_read_byte(0);
-    _SPMCR = 1<<BLBSET | 1<<SPMEN;
-    uint8_t hi = pgm_read_byte(3);
-
-    return ECMD_FINAL(snprintf_P(output, len, PSTR("Fuses: low=%02X high=%02X"), lo, hi));
-#else
-    return ECMD_FINAL(snprintf_P(output, len, PSTR("Fuses: unsupported")));
-#endif
-}
-
-
-#ifndef DISABLE_REBOOT_SUPPORT
-int16_t parse_cmd_reset(char *cmd, char *output, uint16_t len)
-{
-    (void) output;
-    (void) len;
-
-    if (*cmd != '\0')
-	    return ECMD_ERR_PARSE_ERROR;
-
-    status.request_reset = 1;
-#ifdef UIP_SUPPORT
-    uip_close();
-#endif
-    return ECMD_FINAL_OK;
-}
-
-int16_t parse_cmd_wdreset(char *cmd, char *output, uint16_t len)
-{
-    status.request_wdreset = 1;
-#ifdef UIP_SUPPORT
-    uip_close();
-#endif
-    return ECMD_FINAL_OK;
-}
-#endif /* DISABLE_REBOOT_SUPPORT */
-
-int16_t parse_cmd_d(char *cmd, char *output, uint16_t len)
-{
-    (void) len;
-
-    while (*cmd == ' ') cmd ++;
-
-    uint16_t temp;
-    if (sscanf_P (cmd, PSTR("%x"), &temp) != 1)
-      return ECMD_ERR_PARSE_ERROR;
-
-    unsigned char *ptr = (void *) temp;
-    for (int i = 0; i < 16; i ++)
-      sprintf_P (output + (i << 1), PSTR("%02x"), * (ptr ++));
-
-    return ECMD_FINAL(32);
 }
 
 int16_t parse_cmd_help(char *cmd, char *output, uint16_t len)

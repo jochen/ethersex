@@ -7,16 +7,16 @@ ifdef(`conf_SD_READER', `dnl
 ')dnl
 
 ifdef(`conf_ONEWIRE', `dnl
-  /* onewire support */
-  pin(ONEWIRE, PD6)
+  /* onewire port range */
+  ONEWIRE_PORT_RANGE(PD6, PD6)
 ')dnl
 
 ifdef(`conf_STELLA', `dnl
   /* stella port 1 */
-  STELLA_PORT1_RANGE(PC0,PC7)
+  STELLA_PORT1_RANGE(PC0, PC7)
 ')dnl
 
-dnl STELLA_PORT2_RANGE(PA0,PA3)
+dnl STELLA_PORT2_RANGE(PA0, PA3)
 
 ifdef(`conf_STATUSLED_POWER', `dnl
 pin(STATUSLED_POWER, PA3, OUTPUT)
@@ -30,17 +30,13 @@ ifdef(`conf_STATUSLED_NETLINK', `dnl
 pin(STATUSLED_NETLINK, PA2, OUTPUT)
 ')dnl
 
-ifdef(`conf_STATUSLED_TX', `dnl
-pin(STATUSLED_TX, PA1, OUTPUT)
-')dnl
-
-ifdef(`conf_STATUSLED_RX', `dnl
-pin(STATUSLED_RX, PA0, OUTPUT)
+ifdef(`conf_STATUSLED_HB_ACT', `dnl
+pin(STATUSLED_HB_ACT, PA0, OUTPUT)
 ')dnl
 
 ifdef(`conf_FS20', `dnl
 /* fs20 support */
-pin(FS20_SEND, PB2)
+pin(FS20_SEND, PD7)
 ifdef(`conf_FS20_RECEIVE', `dnl
 /* DO NOT CHANGE PIN!  USES INTERNAL COMPARATOR! */
 pin(FS20_RECV, PB3)
@@ -76,4 +72,14 @@ ifdef(`conf_LTC1257', `
 ifdef(`conf_USTREAM', `
   pin(VS1053_CS, PB0, OUTPUT)
   pin(VS1053_DREQ, PB3, INPUT)
+')
+
+ifdef(`conf_HD44780', `
+  pin(HD44780_RS, PD3)
+  pin(HD44780_RW, PD2)
+  pin(HD44780_EN1, PB0)
+  pin(HD44780_D4, PD4)
+  pin(HD44780_D5, PD5)
+  pin(HD44780_D6, PD6)
+  pin(HD44780_D7, PD7)
 ')

@@ -76,8 +76,12 @@ network_init(void)
     debug_printf("net: loading base network settings\n");
 #   endif
 
-#   ifdef ENC28J60_SUPPORT
+#ifdef ETHERNET_SUPPORT
+# ifdef ENC28J60_SUPPORT
     uip_stack_set_active(STACK_ENC);
+# else  /* TAP_SUPPORT */
+    uip_stack_set_active(STACK_TAP);
+#endif
 
     /* use uip buffer as generic space here, since when this function is called,
      * no network packets will be processed */
@@ -93,7 +97,7 @@ network_init(void)
       eeprom_init();
 #endif
 
-#ifdef ENC28J60_SUPPORT
+#ifdef ETHERNET_SUPPORT
     network_config_load();
 #endif
 
@@ -106,7 +110,7 @@ network_init(void)
 #   endif
 
 #   if defined(IPV6_STATIC_SUPPORT) && defined(TFTPOMATIC_SUPPORT)
-    const unsigned char *filename = CONF_TFTP_IMAGE;
+    const char *filename = CONF_TFTP_IMAGE;
     set_CONF_TFTP_IP(&ip);
 
     tftp_fire_tftpomatic(&ip, filename);
@@ -114,24 +118,32 @@ network_init(void)
 #   endif /* IPV6_STATIC_SUPPORT && TFTPOMATIC_SUPPORT */
 
 
-#   elif !defined(ROUTER_SUPPORT) /* and not ENC28J60_SUPPORT */
+#   elif !defined(ROUTER_SUPPORT) /* and not ETHERNET_SUPPORT */
     /* Don't allow for eeprom-based configuration of rfm12/zbus IP address,
        mainly for code size reasons. */
     set_CONF_ETHERRAPE_IP(&ip);
     uip_sethostaddr(&ip);
 
-#   endif /* not ENC28J60_SUPPORT and not ROUTER_SUPPORT */
+#   endif /* not ETHERNET_SUPPORT and not ROUTER_SUPPORT */
 
     ethersex_meta_netinit();
 
 #   ifdef ENC28J60_SUPPORT
     init_enc28j60();
+#   endif
+
+#   ifdef ETHERNET_SUPPORT
 #   if UIP_CONF_IPV6
     uip_neighbor_init();
 #   else
     uip_arp_init();
 #   endif
-#   endif
+#   else /* ETHERNET_SUPPORT */
+    /* set at least fixed default gateway address
+     * to allow multi stack routing */
+    set_CONF_ETHERRAPE_GATEWAY(&ip);
+    uip_setdraddr(&ip);
+#   endif  /* ETHERNET_SUPPORT */
 
 }
 
