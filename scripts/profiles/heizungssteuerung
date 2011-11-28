@@ -30,6 +30,7 @@ heizung=y
 # pollin_funkevalboard is not set
 # radig_web is not set
 # BOOTLOADER_SUPPORT is not set
+BOOTLOADER_START_ADDRESS=0xe000
 # TEENSY_SUPPORT is not set
 # SPI_TIMEOUT is not set
 # USE_GIT_VERSION is not set
