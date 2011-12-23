@@ -2294,23 +2294,6 @@ DMX_STORAGE_SUPPORT
 
   DMX Storage stores and manages DMX universes and provides routines for accessing the data with other modules.
   Each of these modules can connect using a slot - so make sure that you have sufficient slots for each universe and each module!
-DMX Effect
-DMX_EFFECT_SUPPORT
-  Dependes on:
-   * DMX Storage (DMX_STORAGE_SUPPORT)
-
-  Part of the Ethersex Lighting Architecture
-
-  DMX Effect creates animations and effects for
-  headless setups or currently not animated devices
-DMX_EFFECT_RAINBOW
-  
-  Nice color changing (smooth) animation.
-
-DMX_EFFECT_RAINBOW_MARGIN
-  If your DMX device or application needs a certain value between the channel values (e.g. mode, speed etc.) you can set the margin length here
-DMX_EFFECT_RAINBOW_MARGIN_FILL
-  If your DMX device or application needs a certain value between the channel values (e.g. mode, speed etc.) you can set the value here
 STARBURST_SUPPORT
   Depends on:
    * DMX Storage (DMX_STORAGE_SUPPORT)
@@ -2324,7 +2307,7 @@ STARBURST_PCA9685
   * STARBURST_SUPPORT
 
   Module for Starburst which controls a NXP pca9685 (12-bit pwm 16-Channel). The dmx layout is as follows:
-  mcmcmcmcmcmcmc....s
+  ccccmmmm....s
   m=mode (see starburst.h for available modes)
   c=channel value (0-255)
   s=strobo s Hz (optional, see STARBURST_PCA9685_STROBO)
@@ -2447,3 +2430,39 @@ FREQCOUNT_BOOT_ON
   Usually you have to enable each frequency counter channel with "fc on [channel]"
   before you can read out data. With this option set all channels are automatically
   enabled on bootup.
+
+DMX FXSlot
+DMX_FXSLOT_SUPPORT
+  Depends on:
+  * DMX Storage (DMX_STORAGE_SUPPORT)
+        
+  Architecture to set effects and animations on different DMX-devices. 
+  You can change following properties during runtime:
+  - active /inactive
+  - effect
+  - speed
+  - amount of devices 
+  - start channel of devices
+  - margin between the devices          
+DMX_FXSLOT_AMOUNT
+  Amount of fxslots available during runtime 
+DMX_FX_RAINBOW
+  fade over RGB (for RGB LEDs)
+DMX_FX_RANDOM
+  Random colors (for RGB LEDs)
+DMX_FX_FIRE
+  fire effect (for RGB LEDs).
+  Tip: use with speed 2
+DMX_FX_WATER
+  not implemented yet
+
+Autosave slots
+DMX_FXSLOT_AUTOSAVE_SUPPORT
+
+  If enabled, the fxslots will be saved to EEPROM whenever altered through ECMD.
+
+Automatically restore slots
+DMX_FXSLOT_AUTORESTORE_SUPPORT
+
+  If enabled, ethersex will restore previously saved fxslots from EEPROM during boot.
+
